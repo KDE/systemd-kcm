@@ -1,0 +1,15 @@
+[Domain]
+Name=Systemd KDE control module
+Icon=system-run
+
+[org.kde.kcontrol.kcmsystemd.save]
+Name=Save the systemd configuration files
+Description=Administrator authorization is required to save the systemd configuration files
+Policy=auth_admin
+Persistence=session
+
+[org.kde.kcontrol.kcmsystemd.dbusaction]
+Name=Manipulate systemd over D-Bus
+Description=Administrator authorization is required to manipulate systemd
+Policy=auth_admin
+Persistence=session
