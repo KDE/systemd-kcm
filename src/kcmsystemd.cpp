@@ -1188,7 +1188,7 @@ void kcmsystemd::save()
     KMessageBox::error(this, i18n("Unable to authenticate/execute the action: %1, %2", job->error(), job->errorString()));
   }
   else {
-    KMessageBox::information(this, i18n("Configuration files succesfully written to: %1", helperArgs["etcDir"].toString()));
+    KMessageBox::information(this, i18n("Configuration files successfully written to: %1", helperArgs["etcDir"].toString()));
   }
 }
 
