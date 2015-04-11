@@ -618,6 +618,7 @@ void kcmsystemd::setupConfigParms()
   map["type"] = SIZE;
   map["defVal"] = QVariant(0.1 * partPersSizeMB).toULongLong();
   map["maxVal"] = partPersSizeMB;
+  // xgettext:no-c-format
   map["toolTip"] = i18n("<p>Maximum disk space the persistent journal may take up. Defaults to 10% of file system size.</p>");
   confOptList.append(confOption(map));
 
@@ -627,6 +628,7 @@ void kcmsystemd::setupConfigParms()
   map["type"] = SIZE;
   map["defVal"] = QVariant(0.15 * partPersSizeMB).toULongLong();
   map["maxVal"] = partPersSizeMB;
+  // xgettext:no-c-format
   map["toolTip"] = i18n("<p>Minimum disk space the persistent journal should keep free for other uses. Defaults to 15% of file system size.</p>");
   confOptList.append(confOption(map));
 
@@ -645,6 +647,7 @@ void kcmsystemd::setupConfigParms()
   map["type"] = SIZE;
   map["defVal"] = QVariant(0.1 * partVolaSizeMB).toULongLong();
   map["maxVal"] = partVolaSizeMB;
+  // xgettext:no-c-format
   map["toolTip"] = i18n("<p>Maximum disk space the volatile journal may take up. Defaults to 10% of file system size.</p>");
   confOptList.append(confOption(map));
 
@@ -654,6 +657,7 @@ void kcmsystemd::setupConfigParms()
   map["type"] = SIZE;
   map["defVal"] = QVariant(0.15 * partVolaSizeMB).toULongLong();
   map["maxVal"] = partVolaSizeMB;
+  // xgettext:no-c-format
   map["toolTip"] = i18n("<p>Minimum disk space the volatile journal should keep free for other uses. Defaults to 15% of file system size.</p>");
   confOptList.append(confOption(map));
 
@@ -941,6 +945,7 @@ void kcmsystemd::setupConfigParms()
     map["type"] = SIZE;
     map["defVal"] = QVariant(0.1 * partPersSizeMB).toULongLong();
     map["maxVal"] = partPersSizeMB;
+    // xgettext:no-c-format
     map["toolTip"] = i18n("<p>Old coredumps are removed as soon as the total disk space taken up by coredumps grows beyond this limit. Defaults to 10% of the total disk size.</p>");
     confOptList.append(confOption(map));
 
@@ -950,6 +955,7 @@ void kcmsystemd::setupConfigParms()
     map["type"] = SIZE;
     map["defVal"] = QVariant(0.15 * partPersSizeMB).toULongLong();
     map["maxVal"] = partPersSizeMB;
+    // xgettext:no-c-format
     map["toolTip"] = i18n("<p>Minimum disk space to keep free. Defaults to 15% of the total disk size.</p>");
     confOptList.append(confOption(map));
   }
