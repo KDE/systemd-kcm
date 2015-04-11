@@ -400,7 +400,7 @@ QString confOption::getValueAsString() const
   {
     QVariantMap map = value.toMap();
     QString mapAsString;
-    for(QVariantMap::const_iterator iter = map.begin(); iter != map.end(); ++iter)
+    for(QVariantMap::const_iterator iter = map.constBegin(); iter != map.constEnd(); ++iter)
     {
       if (iter.value() == true && mapAsString.isEmpty())
         mapAsString = QString(iter.key());
@@ -438,7 +438,7 @@ QString confOption::getLineForFile() const
       {
         QVariantMap map = value.toMap();
         QString ret;
-        for(QVariantMap::const_iterator iter = map.begin(); iter != map.end(); ++iter)
+        for(QVariantMap::const_iterator iter = map.constBegin(); iter != map.constEnd(); ++iter)
         {
           if (iter.value().toBool())
             ret = QString(ret + iter.key() + " ");

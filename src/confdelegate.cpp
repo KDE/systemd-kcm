@@ -130,7 +130,7 @@ void ConfDelegate::setEditorData(QWidget *editor,
     QComboBox *cmb = static_cast<QComboBox*>(editor);
     QVariantMap map = index.data(Qt::UserRole+2).toMap();
 
-    for(QVariantMap::const_iterator iter = map.begin(); iter != map.end(); ++iter)
+    for(QVariantMap::const_iterator iter = map.constBegin(); iter != map.constEnd(); ++iter)
     {
       // qDebug() << iter.key() << " = " << iter.value();
       if (iter.value() == true)

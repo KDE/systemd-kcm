@@ -27,7 +27,7 @@ ActionReply Helper::save(const QVariantMap& args)
   ActionReply reply;
   QVariantMap files = args["files"].toMap();
   
-  for(QVariantMap::const_iterator iter = files.begin(); iter != files.end(); ++iter)
+  for(QVariantMap::const_iterator iter = files.constBegin(); iter != files.constEnd(); ++iter)
   {
     QString contents = iter.value().toString();
     QFile file(args["etcDir"].toString() + "/" + iter.key());
