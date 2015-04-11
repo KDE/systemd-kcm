@@ -1453,7 +1453,7 @@ QList<QStandardItem *> kcmsystemd::buildTimerListRow(const SystemdUnit &unit, co
   QDateTime time;
   QIcon icon;
   if (bus == sys)
-    icon = QIcon::fromTheme("object-locked");
+    icon = QIcon::fromTheme("applications-system");
   else
     icon = QIcon::fromTheme("user-identity");
 
