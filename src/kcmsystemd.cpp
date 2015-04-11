@@ -40,7 +40,7 @@ K_PLUGIN_FACTORY(kcmsystemdFactory, registerPlugin<kcmsystemd>();)
 kcmsystemd::kcmsystemd(QWidget *parent, const QVariantList &args) : KCModule(parent, args)
 {
   KAboutData *about = new KAboutData("kcmsystemd",
-                                     "kcmsystemd",
+                                     "systemd-kcm",
                                      KCM_SYSTEMD_VERSION,
                                      "KDE Systemd Control Module", 
                                      KAboutLicense::GPL_V3,
