@@ -1,15 +1,45 @@
 [Domain]
 Name=Systemd KDE control module
+Name[ca]=Mòdul de control de «systemd» pel KDE
+Name[gl]=Módulo de control de KDE para systemd
+Name[sk]=KDE ovládací modul systemd
+Name[sv]=KDE-inställningsmodul för systemd
+Name[uk]=Модуль керування KDE для systemd
+Name[x-test]=xxSystemd KDE control modulexx
 Icon=system-run
 
 [org.kde.kcontrol.kcmsystemd.save]
 Name=Save the systemd configuration files
+Name[ca]=Desa els fitxers de configuració del «systemd»
+Name[gl]=Gardar os ficheiros de configuración de systemd
+Name[sk]=Uložiť konfiguračné súbory systemd
+Name[sv]=Spara systemd-inställningsfilerna
+Name[uk]=Зберегти файли налаштувань systemd
+Name[x-test]=xxSave the systemd configuration filesxx
 Description=Administrator authorization is required to save the systemd configuration files
+Description[ca]=Es requereix autorització com a administrador per a desar els fitxers de configuració del «systemd»
+Description[gl]=Precísase a autorización do administrador para gardar os ficheiros de configuración de systemd.
+Description[sk]=Vyžaduje sa overenie administrátora na ukladanie konfiguračných súborov systemd
+Description[sv]=Administratörsbehörighet krävs för att spara systemd-inställningsfilerna
+Description[uk]=Для збереження файлів налаштувань systemd слід пройти розпізнавання на доступ до адміністративних функцій
+Description[x-test]=xxAdministrator authorization is required to save the systemd configuration filesxx
 Policy=auth_admin
 Persistence=session
 
 [org.kde.kcontrol.kcmsystemd.dbusaction]
 Name=Manipulate systemd over D-Bus
+Name[ca]=Manipula el «systemd» sobre D-Bus
+Name[gl]=Manipular systemd mediante D-Bus
+Name[sk]=Manipulácia so systemd cez D-Bus
+Name[sv]=Hantera systemd via D-Bus
+Name[uk]=Керування systemd за допомогою D-Bus
+Name[x-test]=xxManipulate systemd over D-Busxx
 Description=Administrator authorization is required to manipulate systemd
+Description[ca]=Es requereix autorització com a administrador per a manipular el «systemd»
+Description[gl]=Precísase a autorización do administrador para manipular systemd.
+Description[sk]=Vyžaduje sa overenie administrátora na manipuláciu so systemd
+Description[sv]=Administratörsbehörighet krävs för att hantera systemd
+Description[uk]=Для керування systemd слід пройти розпізнавання на доступ до адміністративних функцій
+Description[x-test]=xxAdministrator authorization is required to manipulate systemdxx
 Policy=auth_admin
 Persistence=session

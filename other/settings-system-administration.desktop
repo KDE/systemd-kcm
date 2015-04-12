@@ -7,3 +7,9 @@ X-KDE-Weight=200
 Icon=package-administration
 
 Name=System administration
+Name[ca]=Administració del sistema
+Name[gl]=Administración do sistema
+Name[sk]=Správa systému
+Name[sv]=Systemadministration
+Name[uk]=Адміністрування системи
+Name[x-test]=xxSystem administrationxx
