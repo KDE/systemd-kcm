@@ -8,9 +8,13 @@ Icon=package-administration
 
 Name=System administration
 Name[ca]=Administració del sistema
+Name[es]=Administración del sistema
 Name[gl]=Administración do sistema
 Name[nl]=Systeemadministratie
+Name[pt]=Administração do sistema
+Name[pt_BR]=Administração do sistema
 Name[sk]=Správa systému
 Name[sv]=Systemadministration
 Name[uk]=Адміністрування системи
 Name[x-test]=xxSystem administrationxx
+Name[zh_CN]=系统管理
