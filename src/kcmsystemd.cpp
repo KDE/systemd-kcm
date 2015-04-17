@@ -488,7 +488,7 @@ void kcmsystemd::setupConfigParms()
     map["file"] = SYSTEMD;
     map["type"] = INTEGER;
     map["defVal"] = 5;
-    map["toolTip"] = i18n("<p>Services are not allowed to start more than this number of times within the time interval defined in DefaultStartLimitInterval");
+    map["toolTip"] = i18n("<p>Services are not allowed to start more than this number of times within the time interval defined in DefaultStartLimitInterval.</p>");
     confOptList.append(confOption(map));
   }
 
