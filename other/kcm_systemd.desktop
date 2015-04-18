@@ -10,6 +10,7 @@ X-KDE-System-Settings-Parent-Category=system-administration
 
 Name=Systemd
 Name[ca]=Systemd
+Name[cs]=Systemd
 Name[es]=Systemd
 Name[gl]=systemd
 Name[nl]=Systemd
@@ -34,6 +35,7 @@ Comment[x-test]=xxConfigure the systemd daemonxx
 Comment[zh_CN]=配置 systemd 守护进程
 X-KDE-Keywords=systemd
 X-KDE-Keywords[ca]=systemd
+X-KDE-Keywords[cs]=systemd
 X-KDE-Keywords[es]=systemd
 X-KDE-Keywords[gl]=systemd
 X-KDE-Keywords[nl]=systemd
