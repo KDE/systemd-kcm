@@ -98,7 +98,8 @@ kcmsystemd::kcmsystemd(QWidget *parent, const QVariantList &args) : KCModule(par
   listConfFiles  << "system.conf"
                  << "journald.conf"
                  << "logind.conf";
-  if (systemdVersion >= 215)
+  if (systemdVersion >= 215 &&
+      QFile(etcDir + "/coredump.conf").exists())
     listConfFiles << "coredump.conf";
   
   // Use boost to find persistent partition size
