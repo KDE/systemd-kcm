@@ -26,6 +26,7 @@
 #include <KPluginFactory>
 #include <KMessageBox>
 #include <KMimeTypeTrader>
+#include <KMessageWidget>
 #include <KAuth>
 using namespace KAuth;
 
@@ -995,7 +996,13 @@ void kcmsystemd::readConfFile(int fileindex)
     qDebug() << QString("Successfully read " + etcDir + "/" + listConfFiles.at(fileindex));
   } // if file open
   else
-    KMessageBox::error(this, i18n("Failed to read %1/%2. Using default values.", etcDir, listConfFiles.at(fileindex)));
+  {
+    KMessageWidget *msgWidget = new KMessageWidget;
+    msgWidget->setText(i18n("Failed to read %1/%2. Using default values.", etcDir, listConfFiles.at(fileindex)));
+    msgWidget->setMessageType(KMessageWidget::Warning);
+    ui.verticalLayoutMsg->insertWidget(0, msgWidget);
+    msgWidget->animatedShow();
+  }
 }
 
 void kcmsystemd::setupConf()
