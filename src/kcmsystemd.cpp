@@ -2060,70 +2060,75 @@ QList<SystemdUnit> kcmsystemd::getUnitsFromDbus(dbusBus bus)
 
   dbusreply = callDbusMethod("ListUnits", sysdMgr, bus);
 
-  const QDBusArgument argUnits = dbusreply.arguments().at(0).value<QDBusArgument>();
-  int tal = 0;
-  if (argUnits.currentType() == QDBusArgument::ArrayType)
+  if (dbusreply.type() == QDBusMessage::ReplyMessage)
   {
-    argUnits.beginArray();
-    while (!argUnits.atEnd())
-    {
-      SystemdUnit unit;
-      argUnits >> unit;
-      list.append(unit);
 
-      // qDebug() << "Added unit " << unit.id;
-      tal++;
-    }
-    argUnits.endArray();
-  }
-  // qDebug() << "Added " << tal << " units on bus " << bus;
-  tal = 0;
-
-  // Get a list of unit files
-  dbusreply = callDbusMethod("ListUnitFiles", sysdMgr, bus);
-  const QDBusArgument argUnitFiles = dbusreply.arguments().at(0).value<QDBusArgument>();
-  argUnitFiles.beginArray();
-  while (!argUnitFiles.atEnd())
-  {
-    unitfile u;
-    argUnitFiles.beginStructure();
-    argUnitFiles >> u.name >> u.status;
-    argUnitFiles.endStructure();
-    unitfileslist.append(u);
-  }
-  argUnitFiles.endArray();
-
-  // Add unloaded units to the list
-  for (int i = 0;  i < unitfileslist.size(); ++i)
-  {
-    int index = list.indexOf(SystemdUnit(unitfileslist.at(i).name.section('/',-1)));
-    if (index > -1)
+    const QDBusArgument argUnits = dbusreply.arguments().at(0).value<QDBusArgument>();
+    int tal = 0;
+    if (argUnits.currentType() == QDBusArgument::ArrayType)
     {
-      // The unit was already in the list, add unit file and its status
-      list[index].unit_file = unitfileslist.at(i).name;
-      list[index].unit_file_status = unitfileslist.at(i).status;
-    }
-    else
-    {
-      // Unit not in the list, add it
-      QFile unitfile(unitfileslist.at(i).name);
-      if (unitfile.symLinkTarget().isEmpty())
+      argUnits.beginArray();
+      while (!argUnits.atEnd())
       {
         SystemdUnit unit;
-        unit.id = unitfileslist.at(i).name.section('/',-1);
-        unit.load_state = "unloaded";
-        unit.active_state = "-";
-        unit.sub_state = "-";
-        unit.unit_file = unitfileslist.at(i).name;
-        unit.unit_file_status= unitfileslist.at(i).status;
+        argUnits >> unit;
         list.append(unit);
 
         // qDebug() << "Added unit " << unit.id;
         tal++;
       }
+      argUnits.endArray();
     }
+    // qDebug() << "Added " << tal << " units on bus " << bus;
+    tal = 0;
+
+    // Get a list of unit files
+    dbusreply = callDbusMethod("ListUnitFiles", sysdMgr, bus);
+    const QDBusArgument argUnitFiles = dbusreply.arguments().at(0).value<QDBusArgument>();
+    argUnitFiles.beginArray();
+    while (!argUnitFiles.atEnd())
+    {
+      unitfile u;
+      argUnitFiles.beginStructure();
+      argUnitFiles >> u.name >> u.status;
+      argUnitFiles.endStructure();
+      unitfileslist.append(u);
+    }
+    argUnitFiles.endArray();
+
+    // Add unloaded units to the list
+    for (int i = 0;  i < unitfileslist.size(); ++i)
+    {
+      int index = list.indexOf(SystemdUnit(unitfileslist.at(i).name.section('/',-1)));
+      if (index > -1)
+      {
+        // The unit was already in the list, add unit file and its status
+        list[index].unit_file = unitfileslist.at(i).name;
+        list[index].unit_file_status = unitfileslist.at(i).status;
+      }
+      else
+      {
+        // Unit not in the list, add it
+        QFile unitfile(unitfileslist.at(i).name);
+        if (unitfile.symLinkTarget().isEmpty())
+        {
+          SystemdUnit unit;
+          unit.id = unitfileslist.at(i).name.section('/',-1);
+          unit.load_state = "unloaded";
+          unit.active_state = "-";
+          unit.sub_state = "-";
+          unit.unit_file = unitfileslist.at(i).name;
+          unit.unit_file_status= unitfileslist.at(i).status;
+          list.append(unit);
+
+          // qDebug() << "Added unit " << unit.id;
+          tal++;
+        }
+      }
+    }
+    // qDebug() << "Added " << tal << " units from files on bus " << bus;
+
   }
-  // qDebug() << "Added " << tal << " units from files on bus " << bus;
 
   return list;
 }
@@ -2198,7 +2203,7 @@ QDBusMessage kcmsystemd::callDbusMethod(QString method, dbusIface ifaceName, dbu
   }
   else
   {
-    qDebug() << "Invalid DBus interface!";
+    qDebug() << "Invalid DBus interface on bus" << bus;
     delete iface;
   }
   return msg;
