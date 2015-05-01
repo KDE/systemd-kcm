@@ -18,6 +18,7 @@
 #include <QtDBus/QtDBus>
 #include <QColor>
 #include <KLocalizedString>
+#include <KColorScheme>
 
 #include <systemd/sd-journal.h>
 
@@ -78,19 +79,15 @@ QVariant UnitModel::data(const QModelIndex & index, int role) const
 
   else if (role == Qt::ForegroundRole)
   {
-    // Update the text color in model
-    QColor newcolor;
-
+    const KColorScheme scheme(QPalette::Normal);
     if (unitList->at(index.row()).active_state == "active")
-      newcolor = Qt::darkGreen;
+      return scheme.foreground(KColorScheme::PositiveText);
     else if (unitList->at(index.row()).active_state == "failed")
-      newcolor = Qt::darkRed;
+      return scheme.foreground(KColorScheme::NegativeText);
     else if (unitList->at(index.row()).active_state == "-")
-      newcolor = Qt::darkGray;
+      return scheme.foreground(KColorScheme::InactiveText);
     else
-      newcolor = Qt::black;
-
-    return QVariant(newcolor);
+      return QVariant();
   }
 
   else if (role == Qt::ToolTipRole)

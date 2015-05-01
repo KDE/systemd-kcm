@@ -28,6 +28,7 @@
 #include <KMimeTypeTrader>
 #include <KMessageWidget>
 #include <KAuth>
+#include <KColorScheme>
 using namespace KAuth;
 
 #include <boost/filesystem.hpp>
@@ -1411,12 +1412,15 @@ void kcmsystemd::slotRefreshSessionList()
   QColor newcolor;
   for (int row = 0; row < sessionModel->rowCount(); ++row)
   {
+    QBrush newcolor;
+    const KColorScheme scheme(QPalette::Normal);
     if (sessionModel->data(sessionModel->index(row,2), Qt::DisplayRole) == "active")
-      newcolor = Qt::darkGreen;
+      newcolor = scheme.foreground(KColorScheme::PositiveText);
     else if (sessionModel->data(sessionModel->index(row,2), Qt::DisplayRole) == "closing")
-      newcolor = Qt::darkGray;
+      newcolor = scheme.foreground(KColorScheme::InactiveText);
     else
-      newcolor = Qt::black;
+      newcolor = scheme.foreground(KColorScheme::NormalText);
+
     for (int col = 0; col < sessionModel->columnCount(); ++col)
       sessionModel->setData(sessionModel->index(row,col), QVariant(newcolor), Qt::ForegroundRole);
   }
