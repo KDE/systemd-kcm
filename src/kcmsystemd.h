@@ -25,6 +25,7 @@
 
 #include <KCModule>
 #include <KLocalizedString>
+#include <KMessageWidget>
 
 #include "ui_kcmsystemd.h"
 #include "systemdunit.h"
@@ -82,6 +83,7 @@ class kcmsystemd : public KCModule
     bool eventFilter(QObject *, QEvent*);
     void updateUnitCount();
     void setupConfigParms();
+    void displayMsgWidget(KMessageWidget::MessageType type, QString msg);
     QList<SystemdUnit> getUnitsFromDbus(dbusBus bus);
     QVariant getDbusProperty(QString prop, dbusIface ifaceName, QDBusObjectPath path = QDBusObjectPath("/org/freedesktop/systemd1"), dbusBus bus = sys);
     QDBusMessage callDbusMethod(QString method, dbusIface ifaceName, dbusBus bus = sys, const QList<QVariant> &args = QList<QVariant> ());

@@ -26,7 +26,6 @@
 #include <KPluginFactory>
 #include <KMessageBox>
 #include <KMimeTypeTrader>
-#include <KMessageWidget>
 #include <KAuth>
 #include <KColorScheme>
 using namespace KAuth;
@@ -47,8 +46,7 @@ kcmsystemd::kcmsystemd(QWidget *parent, const QVariantList &args) : KCModule(par
                                      "KDE Systemd Control Module", 
                                      KAboutLicense::GPL_V3,
                                      "Copyright (C) 2013-2015 Ragnar Thomsen", QString(),
-                                     "https://github.com/rthomsen/kcmsystemd",
-                                     "https://github.com/rthomsen/kcmsystemd/issues");
+                                     "https://github.com/rthomsen/kcmsystemd");
   about->addAuthor("Ragnar Thomsen", "Main Developer", "rthomsen6@gmail.com");
   setAboutData(about);
   ui.setupUi(this);
@@ -989,7 +987,8 @@ void kcmsystemd::readConfFile(int fileindex)
         if (index >= 0)
         {
           if (confOptList[index].setValueFromFile(line) == -1)
-            KMessageBox::error(this, i18n("\"%1\" is not a valid value for %2. Using default value for this parameter.", line.section("=",1).trimmed(), confOptList.at(index).realName));
+            displayMsgWidget(KMessageWidget::Warning,
+                             i18n("\"%1\" is not a valid value for %2. Using default value for this parameter.", line.section("=",1).trimmed(), confOptList.at(index).realName));
         }
       }
       line = in.readLine();
@@ -998,13 +997,8 @@ void kcmsystemd::readConfFile(int fileindex)
     qDebug() << QString("Successfully read " + etcDir + "/" + listConfFiles.at(fileindex));
   } // if file open
   else
-  {
-    KMessageWidget *msgWidget = new KMessageWidget;
-    msgWidget->setText(i18n("Failed to read %1/%2. Using default values.", etcDir, listConfFiles.at(fileindex)));
-    msgWidget->setMessageType(KMessageWidget::Warning);
-    ui.verticalLayoutMsg->insertWidget(0, msgWidget);
-    msgWidget->animatedShow();
-  }
+    displayMsgWidget(KMessageWidget::Warning,
+                     i18n("Failed to read %1/%2. Using default values.", etcDir, listConfFiles.at(fileindex)));
 }
 
 void kcmsystemd::setupConf()
@@ -1199,12 +1193,11 @@ void kcmsystemd::save()
   ExecuteJob *job = saveAction.execute();
 
   if (!job->exec())
-  {
-    KMessageBox::error(this, i18n("Unable to authenticate/execute the action: %1, %2", job->error(), job->errorString()));
-  }
-  else {
-    KMessageBox::information(this, i18n("Configuration files successfully written to: %1", helperArgs["etcDir"].toString()));
-  }
+    displayMsgWidget(KMessageWidget::Error,
+                     i18n("Unable to authenticate/execute the action: %1", job->error()));
+  else
+    displayMsgWidget(KMessageWidget::Positive,
+                     i18n("Configuration files successfully written to: %1", helperArgs["etcDir"].toString()));
 }
 
 void kcmsystemd::slotConfChanged(const QModelIndex &, const QModelIndex &)
@@ -1577,9 +1570,8 @@ void kcmsystemd::authServiceAction(QString service, QString path, QString interf
   job->exec();
 
   if (!job->exec())
-  {
-    KMessageBox::error(this, i18n("Unable to authenticate/execute the action.\nError code: %1\nError string: %2\nError text: %3", job->error(), job->errorString(), job->errorText()));
-  }
+    displayMsgWidget(KMessageWidget::Error,
+                     i18n("Unable to authenticate/execute the action: %1", job->error()));
   else
   {
     qDebug() << "DBus action successful.";
@@ -1739,7 +1731,8 @@ void kcmsystemd::slotUnitContextMenu(const QPoint &pos)
     if (!r && app == "kdesu")
       r = editor.startDetached(kdePrefix + "/lib/libexec/kdesu", args);
     if (!r)
-      KMessageBox::error(this, i18n("Failed to open unit file!"));
+      displayMsgWidget(KMessageWidget::Error,
+                       i18n("Failed to open unit file!"));
     return;
   }
 
@@ -2212,6 +2205,15 @@ QDBusMessage kcmsystemd::callDbusMethod(QString method, dbusIface ifaceName, dbu
     delete iface;
   }
   return msg;
+}
+
+void kcmsystemd::displayMsgWidget(KMessageWidget::MessageType type, QString msg)
+{
+  KMessageWidget *msgWidget = new KMessageWidget;
+  msgWidget->setText(msg);
+  msgWidget->setMessageType(type);
+  ui.verticalLayoutMsg->insertWidget(0, msgWidget);
+  msgWidget->animatedShow();
 }
 
 #include "kcmsystemd.moc"
