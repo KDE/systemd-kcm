@@ -1,6 +1,7 @@
 [Domain]
 Name=Systemd KDE control module
 Name[ca]=Mòdul de control de «systemd» pel KDE
+Name[de]=KDE-Kontrollmodul für systemd
 Name[es]=Módulo de control de KDE para systemd
 Name[gl]=Módulo de control de KDE para systemd
 Name[nl]=KDE besturingsmodule voor systemd
