@@ -1,9 +1,9 @@
 /*******************************************************************************
- * Copyright (C) 2013-2015 Ragnar Thomsen <rthomsen6@gmail.com>                *
+ * Copyright (C) 2013-2014 Ragnar Thomsen <rthomsen6@gmail.com>                *
  *                                                                             *
  * This program is free software: you can redistribute it and/or modify it     *
  * under the terms of the GNU General Public License as published by the Free  *
- * Software Foundation, either version 2 of the License, or (at your option)   *
+ * Software Foundation, either version 3 of the License, or (at your option)   *
  * any later version.                                                          *
  *                                                                             *
  * This program is distributed in the hope that it will be useful, but WITHOUT *
@@ -17,24 +17,23 @@
 
 #include "helper.h"
 
-#include <QtDBus/QtDBus>
-#include <QFile>
+#include <QtDBus>
 
 #include "../config.h"
 
-ActionReply Helper::save(const QVariantMap& args)
+ActionReply Helper::save(QVariantMap args)
 {
   ActionReply reply;
   QVariantMap files = args["files"].toMap();
   
-  for(QVariantMap::const_iterator iter = files.constBegin(); iter != files.constEnd(); ++iter)
+  for(QVariantMap::const_iterator iter = files.begin(); iter != files.end(); ++iter)
   {
     QString contents = iter.value().toString();
     QFile file(args["etcDir"].toString() + "/" + iter.key());
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-      reply = ActionReply::HelperErrorReply();
+      reply = ActionReply::HelperErrorReply;
       reply.addData("errorDescription", file.errorString());
-      // reply.setErrorCode(file.error());
+      reply.setErrorCode(file.error());
       reply.addData("filename", iter.key());
       return reply;
     }
@@ -47,7 +46,7 @@ ActionReply Helper::save(const QVariantMap& args)
   return reply;
 }
 
-ActionReply Helper::dbusaction(const QVariantMap& args)
+ActionReply Helper::dbusaction(QVariantMap args)
 {
   ActionReply reply;
   QDBusMessage dbusreply;
@@ -96,4 +95,4 @@ ActionReply Helper::dbusaction(const QVariantMap& args)
   return reply;
 }
 
-KAUTH_HELPER_MAIN("org.kde.kcontrol.kcmsystemd", Helper)
+KDE4_AUTH_HELPER_MAIN("org.kde.kcontrol.kcmsystemd", Helper)

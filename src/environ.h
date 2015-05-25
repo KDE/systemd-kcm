@@ -15,18 +15,32 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.              *
  *******************************************************************************/
 
-#ifndef HELPER_H
-#define HELPER_H
-
-#include <kauth.h>
-using namespace KAuth;
-
-class Helper : public QObject
+#ifndef ENVIRON_H
+#define ENVIRON_H
+ 
+#include "ui_environ.h"
+ 
+class EnvironDialog : public KDialog
 {
   Q_OBJECT
-  public slots:
-    ActionReply save(QVariantMap args);
-    ActionReply dbusaction(QVariantMap args);
-};
 
+  public:
+    explicit EnvironDialog(QWidget *parent=0,
+                           QString environ = "");
+    void addNewVariable(int, QString, QString);    
+    bool getChanged();
+    QString getEnviron();
+  
+  private:
+    Ui::EnvironDialog ui;
+    int addedVars;
+    bool changed;
+    QList<QPair<QString, QString> > environ;
+    
+  private slots:
+    void slotButtonClicked(int button);
+    void slotNewVariable();
+    void slotRemoveVariable(const int &index);
+};
+ 
 #endif

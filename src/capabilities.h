@@ -15,18 +15,31 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.              *
  *******************************************************************************/
 
-#ifndef HELPER_H
-#define HELPER_H
-
-#include <kauth.h>
-using namespace KAuth;
-
-class Helper : public QObject
+#ifndef CAPABILITIES_H
+#define CAPABILITIES_H
+ 
+#include "ui_capabilities.h"
+ 
+class CapabilitiesDialog : public KDialog
 {
   Q_OBJECT
-  public slots:
-    ActionReply save(QVariantMap args);
-    ActionReply dbusaction(QVariantMap args);
-};
 
+  public:
+    explicit CapabilitiesDialog(QWidget *parent=0,
+                                QVariantMap capabilities = QVariantMap(),
+                                bool capActive = false);
+    bool getChanged();
+    QVariantMap getCapabilities();
+    bool getCapActive();
+
+  private slots:
+    virtual void slotButtonClicked(int button);
+    void slotChanged();
+    void slotChkCapabilitiesChanged();
+ 
+  private:
+    bool changed;
+    Ui::CapabilitiesDialog ui;
+};
+ 
 #endif

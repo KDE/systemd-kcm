@@ -15,18 +15,29 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.              *
  *******************************************************************************/
 
-#ifndef HELPER_H
-#define HELPER_H
-
-#include <kauth.h>
-using namespace KAuth;
-
-class Helper : public QObject
+#ifndef RESLIMITS_H
+#define RESLIMITS_H
+ 
+#include "ui_reslimits.h"
+ 
+class ResLimitsDialog : public KDialog
 {
   Q_OBJECT
-  public slots:
-    ActionReply save(QVariantMap args);
-    ActionReply dbusaction(QVariantMap args);
-};
 
+  public:
+    explicit ResLimitsDialog(QWidget *parent = 0,
+                             QVariantMap resLimitsMap = QVariantMap());
+    bool getChanged();
+    QVariantMap getResLimits();
+
+  private slots:
+    virtual void slotButtonClicked(int button);
+    void slotChkChanged();
+    void slotChanged();
+ 
+  private:
+    bool changed;
+    Ui::ResLimitsDialog ui;
+};
+ 
 #endif

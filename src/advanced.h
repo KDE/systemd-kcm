@@ -15,18 +15,44 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.              *
  *******************************************************************************/
 
-#ifndef HELPER_H
-#define HELPER_H
-
-#include <kauth.h>
-using namespace KAuth;
-
-class Helper : public QObject
+#ifndef ADVANCED_H
+#define ADVANCED_H
+ 
+#include "ui_advanced.h"
+ 
+class AdvancedDialog : public KDialog
 {
   Q_OBJECT
-  public slots:
-    ActionReply save(QVariantMap args);
-    ActionReply dbusaction(QVariantMap args);
-};
 
+  public:
+    explicit AdvancedDialog(QWidget *parent = 0,
+                            QVariantMap args = QVariantMap());
+    
+    bool getChanged();
+    QString getJoinControllers();
+    QString getDefaultControllers();
+    qulonglong getTimerSlack();
+    qulonglong getRuntimeWatchdog();
+    qulonglong getShutdownWatchdog();
+    QVariantMap getCPUAffinity();
+    bool getCPUAffActive();
+    QVariantMap getSystemCallArchitectures();
+    bool getSysCallActive();
+    QVariantMap getCapabilities();
+    bool getCapActive();
+  
+  private slots:  
+    virtual void slotButtonClicked(int button);
+    void slotChanged();
+    void slotChkCPUAffinityChanged();
+    void slotChkSystemCallArchitecturesChanged();
+    void slotOpenCapabilities();
+ 
+  private:
+    bool changed;
+    QVariantMap tempCap;
+    bool tempCapActive;
+    Ui::AdvancedDialog ui;
+};
+ 
 #endif

@@ -1,9 +1,9 @@
 /*******************************************************************************
- * Copyright (C) 2013-2015 Ragnar Thomsen <rthomsen6@gmail.com>                *
+ * Copyright (C) 2013-2014 Ragnar Thomsen <rthomsen6@gmail.com>                *
  *                                                                             *
  * This program is free software: you can redistribute it and/or modify it     *
  * under the terms of the GNU General Public License as published by the Free  *
- * Software Foundation, either version 2 of the License, or (at your option)   *
+ * Software Foundation, either version 3 of the License, or (at your option)   *
  * any later version.                                                          *
  *                                                                             *
  * This program is distributed in the hope that it will be useful, but WITHOUT *
@@ -16,6 +16,10 @@
  *******************************************************************************/
 
 #include "kcmsystemd.h"
+#include "reslimits.h"
+#include "environ.h"
+#include "advanced.h"
+
 #include <config.h>
 
 #include <QMouseEvent>
@@ -25,63 +29,67 @@
 #include <KAboutData>
 #include <KPluginFactory>
 #include <KMessageBox>
-#include <KMimeTypeTrader>
-#include <KAuth>
-#include <KColorScheme>
+#include <KAuth/ActionWatcher>
 using namespace KAuth;
 
 #include <boost/filesystem.hpp>
 
-// Static members
-ConfModel *kcmsystemd::confModel = new ConfModel();
-QList<confOption> kcmsystemd::confOptList;
-
 K_PLUGIN_FACTORY(kcmsystemdFactory, registerPlugin<kcmsystemd>();)
+K_EXPORT_PLUGIN(kcmsystemdFactory("kcmsystemd"))
 
-kcmsystemd::kcmsystemd(QWidget *parent, const QVariantList &args) : KCModule(parent, args)
+kcmsystemd::kcmsystemd(QWidget *parent, const QVariantList &list) : KCModule(kcmsystemdFactory::componentData(), parent, list)
 {
-  KAboutData *about = new KAboutData("kcmsystemd",
-                                     "systemd-kcm",
-                                     SYSTEMD_KCM_VERSION,
-                                     "KDE Systemd Control Module", 
-                                     KAboutLicense::GPL_V3,
-                                     "Copyright (C) 2013-2015 Ragnar Thomsen", QString(),
-                                     "https://github.com/rthomsen/kcmsystemd");
-  about->addAuthor("Ragnar Thomsen", "Main Developer", "rthomsen6@gmail.com");
-  setAboutData(about);
+  KAboutData *about = new KAboutData("kcmsystemd", "kcmsystemd", ki18nc("@title", "KDE Systemd Control Module"), KCM_SYSTEMD_VERSION, ki18nc("@title", "A KDE Control Module for configuring Systemd."), KAboutData::License_GPL_V3, ki18nc("@info:credit", "Copyright (C) 2013 Ragnar Thomsen"), KLocalizedString(), "https://github.com/rthomsen/kcmsystemd");
+  about->addAuthor(ki18nc("@info:credit", "Ragnar Thomsen"), ki18nc("@info:credit", "Main Developer"), "rthomsen6@gmail.com");
+  setAboutData(about);  
   ui.setupUi(this);
-  setButtons(kcmsystemd::Default | kcmsystemd::Apply);
   setNeedsAuthorization(true);
-  ui.leSearchUnit->setFocus();
-
+  
   // See if systemd is reachable via dbus
-  if (getDbusProperty("Version", sysdMgr) != "invalidIface")
-  {
-    systemdVersion = getDbusProperty("Version", sysdMgr).toString().remove("systemd ").toInt();
-    qDebug() << "Detected systemd" << systemdVersion;
-  }
-  else
-  {
+  QDBusConnection systembus = QDBusConnection::systemBus();
+  QDBusInterface *iface = new QDBusInterface ("org.freedesktop.systemd1",
+					      "/org/freedesktop/systemd1",
+					      "org.freedesktop.systemd1.Manager",
+					      systembus,
+					      this);
+  if (iface->isValid()) {
+    systemdVersion = iface->property("Version").toString().remove("systemd ").toInt();
+    // This option was added in systemd 205
+    if (systemdVersion < 205)
+      ui.btnEnviron->setEnabled(false);
+    // These options were removed in systemd 207
+    if (systemdVersion >= 207)
+      ui.grpControlGroups->setEnabled(false);
+    // These options were added in systemd 209
+    if (systemdVersion < 209)
+    {
+      ui.grpUnitStartRateLimit->setEnabled(false);
+      ui.grpUnitTimeouts->setEnabled(false);
+    }
+    // These options were added in systemd 211
+    if (systemdVersion < 211)
+      ui.grpDefResourceAccounting->setEnabled(false);
+    // These options were added in systemd 212
+    if (systemdVersion < 212)
+    {
+      ui.grpTimerAccuracy->setEnabled(false);
+      ui.chkForwardToWall_1->setEnabled(false);
+      ui.cmbMaxLevelWall_1->setEnabled(false);
+    }
+    if (systemdVersion >= 215)
+      ui.tabCoredump->setEnabled(true);
+
+    qDebug() << "Systemd" << systemdVersion << "detected.";
+  } else {
     qDebug() << "Unable to contact systemd daemon!";
     ui.stackedWidget->setCurrentIndex(1);
   }
+  delete iface;
 
-  // Search for user bus
-  if (QFile("/run/user/" + QString::number(getuid()) + "/bus").exists())
-    userBusPath = "unix:path=/run/user/" + QString::number(getuid()) + "/bus";
-  else if (QFile("/run/user/" + QString::number(getuid()) + "/dbus/user_bus_socket").exists())
-    userBusPath = "unix:path=/run/user/" + QString::number(getuid()) + "/dbus/user_bus_socket";
-  else
-  {
-    qDebug() << "User bus not found. Support for user units disabled.";
-    ui.tabWidget->setTabEnabled(1,false);
-    enableUserUnits = false;
-  }
-
-  // Use kf5-config to get kde prefix
+  // Use kde4-config to get kde prefix
   kdeConfig = new QProcess(this);
   connect(kdeConfig, SIGNAL(readyReadStandardOutput()), this, SLOT(slotKdeConfig()));
-  kdeConfig->start("kf5-config", QStringList() << "--prefix");
+  kdeConfig->start("kde4-config", QStringList() << "--prefix");
   
   // Find the configuration directory
   if (QDir("/etc/systemd").exists()) {
@@ -94,13 +102,10 @@ kcmsystemd::kcmsystemd(QWidget *parent, const QVariantList &args) : KCModule(par
     ui.lblFailMessage->setText(i18n("Unable to find directory with systemd configuration files."));
     return;
   }
-  listConfFiles  << "system.conf"
-                 << "journald.conf"
-                 << "logind.conf";
-  if (systemdVersion >= 215 &&
-      QFile(etcDir + "/coredump.conf").exists())
-    listConfFiles << "coredump.conf";
   
+  varLogDirExists = QDir("/var/log/journal").exists();
+  if (varLogDirExists)
+    isPersistent = true;
   // Use boost to find persistent partition size
   boost::filesystem::path pp ("/var/log");
   boost::filesystem::space_info logPpart = boost::filesystem::space(pp);
@@ -116,1023 +121,519 @@ kcmsystemd::kcmsystemd(QWidget *parent, const QVariantList &args) : KCModule(par
   setupConfigParms();
   setupSignalSlots();
   
-  // Subscribe to dbus signals from systemd system daemon and connect them to slots
-  callDbusMethod("Subscribe", sysdMgr);
-  systembus.connect(connSystemd, pathSysdMgr, ifaceMgr, "Reloading", this, SLOT(slotSystemSystemdReloading(bool)));
-  // systembus.connect(connSystemd, pathSysdMgr, ifaceMgr, "UnitNew", this, SLOT(slotUnitLoaded(QString, QDBusObjectPath)));
-  // systembus.connect(connSystemd,pathSysdMgr, ifaceMgr, "UnitRemoved", this, SLOT(slotUnitUnloaded(QString, QDBusObjectPath)));
-  systembus.connect(connSystemd, pathSysdMgr, ifaceMgr, "UnitFilesChanged", this, SLOT(slotSystemUnitsChanged()));
-  systembus.connect(connSystemd, "", ifaceDbusProp, "PropertiesChanged", this, SLOT(slotSystemUnitsChanged()));
-  // We need to use the JobRemoved signal, because stopping units does not emit PropertiesChanged signal
-  systembus.connect(connSystemd, pathSysdMgr, ifaceMgr, "JobRemoved", this, SLOT(slotSystemUnitsChanged()));
-
-  // Subscribe to dbus signals from systemd user daemon and connect them to slots
-  callDbusMethod("Subscribe", sysdMgr, user);
-  QDBusConnection userbus = QDBusConnection::connectToBus(userBusPath, connSystemd);
-  userbus.connect(connSystemd, pathSysdMgr, ifaceMgr, "Reloading", this, SLOT(slotUserSystemdReloading(bool)));
-  userbus.connect(connSystemd, pathSysdMgr, ifaceMgr, "UnitFilesChanged", this, SLOT(slotUserUnitsChanged()));
-  userbus.connect(connSystemd, "", ifaceDbusProp, "PropertiesChanged", this, SLOT(slotUserUnitsChanged()));
-  userbus.connect(connSystemd, pathSysdMgr, ifaceMgr, "JobRemoved", this, SLOT(slotUserUnitsChanged()));
-
-  // logind
-  systembus.connect(connLogind, "", ifaceDbusProp, "PropertiesChanged", this, SLOT(slotLogindPropertiesChanged(QString, QVariantMap, QStringList)));
+  // Subscribe to dbus signals from systemd daemon and connect them to slots
+  iface = new QDBusInterface ("org.freedesktop.systemd1",
+					      "/org/freedesktop/systemd1",
+					      "org.freedesktop.systemd1.Manager",
+					      systembus,
+					      this);
+  if (iface->isValid())
+    iface->call(QDBus::AutoDetect, "Subscribe");
+  delete iface;
+  QDBusConnection::systemBus().connect("org.freedesktop.systemd1","/org/freedesktop/systemd1","org.freedesktop.systemd1.Manager","Reloading",this,SLOT(slotSystemdReloading(bool)));
+  // QDBusConnection::systemBus().connect("org.freedesktop.systemd1","/org/freedesktop/systemd1","org.freedesktop.systemd1.Manager","UnitNew",this,SLOT(slotUnitLoaded(QString, QDBusObjectPath)));
+  // QDBusConnection::systemBus().connect("org.freedesktop.systemd1","/org/freedesktop/systemd1","org.freedesktop.systemd1.Manager","UnitRemoved",this,SLOT(slotUnitUnloaded(QString, QDBusObjectPath)));
+  QDBusConnection::systemBus().connect("org.freedesktop.systemd1","/org/freedesktop/systemd1","org.freedesktop.systemd1.Manager","UnitFilesChanged",this,SLOT(slotUnitFilesChanged()));
+  QDBusConnection::systemBus().connect("org.freedesktop.systemd1","","org.freedesktop.DBus.Properties","PropertiesChanged",this,SLOT(slotPropertiesChanged(QString, QVariantMap, QStringList)));
   
-  // Get list of units
-  slotRefreshUnitsList(true, sys);
-  slotRefreshUnitsList(true, user);
-
+  // Setup the unitslist
   setupUnitslist();
-  setupConf();
-  setupSessionlist();
-  setupTimerlist();
 }
 
-kcmsystemd::~kcmsystemd()
-{
-}
-
-QDBusArgument &operator<<(QDBusArgument &argument, const SystemdUnit &unit)
+QDBusArgument &operator<<(QDBusArgument &argument, const SystemdUnit &service)
 {
   argument.beginStructure();
-  argument << unit.id
-     << unit.description
-     << unit.load_state
-     << unit.active_state
-     << unit.sub_state
-     << unit.following
-     << unit.unit_path
-     << unit.job_id
-     << unit.job_type
-     << unit.job_path;
+  argument << service.id
+	   << service.description
+ 	   << service.load_state
+ 	   << service.active_state
+ 	   << service.sub_state
+	   << service.following
+	   << service.unit_path
+	   << service.job_id
+	   << service.job_type
+	   << service.job_path;
   argument.endStructure();
   return argument;
 }
 
-const QDBusArgument &operator>>(const QDBusArgument &argument, SystemdUnit &unit)
+const QDBusArgument &operator>>(const QDBusArgument &argument, SystemdUnit &service)
 {
      argument.beginStructure();
-     argument >> unit.id
-        >> unit.description
-        >> unit.load_state
-        >> unit.active_state
-        >> unit.sub_state
-        >> unit.following
-        >> unit.unit_path
-        >> unit.job_id
-        >> unit.job_type
-        >> unit.job_path;
-     argument.endStructure();
-     return argument;
-}
-
-QDBusArgument &operator<<(QDBusArgument &argument, const SystemdSession &session)
-{
-  argument.beginStructure();
-  argument << session.session_id
-     << session.user_id
-     << session.user_name
-     << session.seat_id
-     << session.session_path;
-  argument.endStructure();
-  return argument;
-}
-
-const QDBusArgument &operator>>(const QDBusArgument &argument, SystemdSession &session)
-{
-     argument.beginStructure();
-     argument >> session.session_id
-        >> session.user_id
-        >> session.user_name
-        >> session.seat_id
-        >> session.session_path;
+     argument >> service.id
+	      >> service.description
+	      >> service.load_state
+	      >> service.active_state
+	      >> service.sub_state
+	      >> service.following
+	      >> service.unit_path
+	      >> service.job_id
+	      >> service.job_type
+	      >> service.job_path;
      argument.endStructure();
      return argument;
 }
 
 void kcmsystemd::setupSignalSlots()
 {
-  // Connect signals for unit tabs
-  connect(ui.chkInactiveUnits, SIGNAL(stateChanged(int)), this, SLOT(slotChkShowUnits(int)));
-  connect(ui.chkUnloadedUnits, SIGNAL(stateChanged(int)), this, SLOT(slotChkShowUnits(int)));
-  connect(ui.chkInactiveUserUnits, SIGNAL(stateChanged(int)), this, SLOT(slotChkShowUnits(int)));
-  connect(ui.chkUnloadedUserUnits, SIGNAL(stateChanged(int)), this, SLOT(slotChkShowUnits(int)));
-  connect(ui.cmbUnitTypes, SIGNAL(currentIndexChanged(int)), this, SLOT(slotCmbUnitTypes(int)));
-  connect(ui.cmbUserUnitTypes, SIGNAL(currentIndexChanged(int)), this, SLOT(slotCmbUnitTypes(int)));
-  connect(ui.tblUnits, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(slotUnitContextMenu(QPoint)));
-  connect(ui.tblUserUnits, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(slotUnitContextMenu(QPoint)));
+  // Connect signals for units tab
+  connect(ui.btnStartUnit, SIGNAL(clicked()), this, SLOT(slotBtnStartUnit()));
+  connect(ui.btnStopUnit, SIGNAL(clicked()), this, SLOT(slotBtnStopUnit()));
+  connect(ui.btnRestartUnit, SIGNAL(clicked()), this, SLOT(slotBtnRestartUnit()));
+  connect(ui.btnReloadUnit, SIGNAL(clicked()), this, SLOT(slotBtnReloadUnit()));
+  connect(ui.btnRefreshUnits, SIGNAL(clicked()), this, SLOT(slotRefreshUnitsList()));
+  connect(ui.chkInactiveUnits, SIGNAL(stateChanged(int)), this, SLOT(slotChkShowUnits()));
+  connect(ui.chkShowUnloadedUnits, SIGNAL(stateChanged(int)), this, SLOT(slotChkShowUnits()));
+  connect(ui.cmbUnitTypes, SIGNAL(currentIndexChanged(int)), this, SLOT(slotCmbUnitTypes()));
+  connect(ui.tblServices, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(slotDisplayMenu(QPoint)));
   connect(ui.leSearchUnit, SIGNAL(textChanged(QString)), this, SLOT(slotLeSearchUnitChanged(QString)));
-  connect(ui.leSearchUserUnit, SIGNAL(textChanged(QString)), this, SLOT(slotLeSearchUnitChanged(QString)));
-
-  // Connect signals for sessions tab
-  connect(ui.tblSessions, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(slotSessionContextMenu(QPoint)));
-
-  // Connect signals for conf tab
-  connect(ui.cmbConfFile, SIGNAL(currentIndexChanged(int)), this, SLOT(slotCmbConfFileChanged(int)));
+  
+  // Connect signals for system.conf  
+  connect(ui.btnResourceLimits, SIGNAL(clicked()), this, SLOT(slotOpenResourceLimits()));
+  connect(ui.btnEnviron, SIGNAL(clicked()), this, SLOT(slotOpenEnviron()));
+  connect(ui.btnAdvanced, SIGNAL(clicked()), this, SLOT(slotOpenAdvanced()));
+  
+  // Connect signals for journald.conf:
+  connect(ui.cmbStorage_1, SIGNAL(currentIndexChanged(int)), this, SLOT(slotJrnlStorageChanged(int)));
+  connect(ui.spnMaxUse_1, SIGNAL(valueChanged(int)), this, SLOT(slotSpnMaxUseChanged()));
+  connect(ui.spnKeepFree_1, SIGNAL(valueChanged(int)), this, SLOT(slotSpnKeepFreeChanged()));
+  connect(ui.spnMaxFileSize_1, SIGNAL(valueChanged(int)), this, SLOT(slotSpnMaxFileSizeChanged()));
+  connect(ui.chkForwardToSyslog_1, SIGNAL(stateChanged(int)), this, SLOT(slotFwdToSyslogChanged()));
+  connect(ui.chkForwardToKMsg_1, SIGNAL(stateChanged(int)), this, SLOT(slotFwdToKmsgChanged()));
+  connect(ui.chkForwardToConsole_1, SIGNAL(stateChanged(int)), this, SLOT(slotFwdToConsoleChanged()));
+  connect(ui.chkForwardToWall_1, SIGNAL(stateChanged(int)), this, SLOT(slotFwdToWallChanged()));
+  
+  QList<QCheckBox *> listChk = this->findChildren<QCheckBox *>(QRegExp("(MaxUse|KeepFree|MaxFileSize)_1"));
+  foreach(QCheckBox *chk, listChk)
+    connect(chk, SIGNAL(stateChanged(int)), this, SLOT(slotJrnlStorageChkBoxes(int)));
+  
+  // Connect signals for logind.conf
+  connect(ui.chkKillUserProcesses_2, SIGNAL(stateChanged(int)), this, SLOT(slotKillUserProcessesChanged()));
+  
+  // Connect signals for coredump.conf
+  connect(ui.cmbStorage_3, SIGNAL(currentIndexChanged(int)), this, SLOT(slotCoreStorageChanged(int)));
 }
 
 void kcmsystemd::load()
 {
-  // Only populate comboboxes once
+  // Only initialize the interface once
   if (timesLoad == 0)
-  {
-    QStringList allowUnitTypes = QStringList() << i18n("All") << i18n("Targets") << i18n("Services")
-                                               << i18n("Devices") << i18n("Mounts") << i18n("Automounts") << i18n("Swaps")
-                                               << i18n("Sockets") << i18n("Paths") << i18n("Timers") << i18n("Snapshots")
-                                               << i18n("Slices") << i18n("Scopes");
-    ui.cmbUnitTypes->addItems(allowUnitTypes);
-    ui.cmbUserUnitTypes->addItems(allowUnitTypes);
-    ui.cmbConfFile->addItems(listConfFiles);
-  }
-  timesLoad = timesLoad + 1;
+    initializeInterface();
   
-  // Set all confOptions to default
-  // This is needed to clear user changes when resetting the KCM
-  for (int i = 0; i < confOptList.size(); ++i)
-  {
-    confOptList[i].setToDefault();
-  }
-
   // Read the four configuration files
-  for (int i = 0; i < listConfFiles.size(); ++i)
-  {
-    readConfFile(i);
-  }
-
+  readConfFile("system.conf");
+  readConfFile("journald.conf");
+  readConfFile("logind.conf");
+  if (systemdVersion >= 215)
+    readConfFile("coredump.conf");
+  
+  // Apply the read settings to the interface
+  applyToInterface();
+  
   // Connect signals to slots, which need to be after initializeInterface()
-  connect(confModel, SIGNAL(dataChanged(const QModelIndex &, const QModelIndex &)), this, SLOT(slotConfChanged(const QModelIndex &, const QModelIndex &)));
+  // Checkboxes
+  QList<QCheckBox *> listChk = this->findChildren<QCheckBox *>();
+  foreach(QCheckBox *chk, listChk)
+  {
+    // Some checkboxes need their own slots
+    if (chk->objectName() != "chkMaxUse_1" && 
+        chk->objectName() != "chkKeepFree_1" &&
+        chk->objectName() != "chkMaxFileSize_1" &&
+        chk->objectName() != "chkInactiveUnits" &&
+        chk->objectName() != "chkShowUnloadedUnits" &&
+        chk->objectName() != "chkMaxRetentionSec_1" &&
+        chk->objectName() != "chkMaxFileSec_1")
+      connect(chk, SIGNAL(stateChanged(int)), this, SLOT(slotUpdateConfOption()));
+  }
+  // Spinboxes
+  QList<QSpinBox *> listSpn = this->findChildren<QSpinBox *>();
+  foreach(QSpinBox *spn, listSpn)
+  {
+    // Some spinboxes need their own slots
+    if (spn->objectName() != "spnMaxUse_1" && 
+        spn->objectName() != "spnKeepFree_1" && 
+        spn->objectName() != "spnMaxFileSize_1")
+      connect(spn, SIGNAL(valueChanged(int)), this, SLOT(slotUpdateConfOption()));
+  }
+  // Comboboxes
+  QList<QComboBox *> listCmb = this->findChildren<QComboBox *>();
+  foreach(QComboBox *cmb, listCmb)
+  {
+    if (cmb->objectName() != "cmbUnitTypes")
+      connect(cmb, SIGNAL(currentIndexChanged(int)), this, SLOT(slotUpdateConfOption()));
+  }
 }
 
 void kcmsystemd::setupConfigParms()
 {
-  // Creates an instance of confOption for each option in the systemd configuration
-  // files and adds them to confOptList. Arguments are passed as a QVariantMap.
-
-  QVariantMap map;
-
+  // Setup classes for all configuration options in conf.files
+  
   // system.conf
-
-  map.clear();
-  map["name"] = "LogLevel";
-  map["file"] = SYSTEMD;
-  map["type"] = LIST;
-  map["defVal"] = "info";
-  map["possibleVals"] = QStringList() << "emerg" << "alert" << "crit" << "err" << "warning" << "notice" << "info" << "debug";
-  map["toolTip"] = i18n("<p>Set the level of log entries in systemd.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "LogTarget";
-  map["file"] = SYSTEMD;
-  map["type"] = LIST;
-  map["defVal"] = "journal-or-kmsg";
-  map["possibleVals"] = QStringList() <<  "console" << "journal" << "syslog" << "kmsg" << "journal-or-kmsg" << "syslog-or-kmsg" << "null";
-  map["toolTip"] = i18n("<p>Set target for logs.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "LogColor";
-  map["file"] = SYSTEMD;
-  map["type"] = BOOL;
-  map["defVal"] = true;
-  map["toolTip"] = i18n("<p>Use color to highlight important log messages.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "LogLocation";
-  map["file"] = SYSTEMD;
-  map["type"] = BOOL;
-  map["defVal"] = true;
-  map["toolTip"] = i18n("<p>Include code location in log messages.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "DumpCore";
-  map["file"] = SYSTEMD;
-  map["type"] = BOOL;
-  map["defVal"] = true;
-  map["toolTip"] = i18n("<p>Dump core on systemd crash.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "CrashShell";
-  map["file"] = SYSTEMD;
-  map["type"] = BOOL;
-  map["defVal"] = false;
-  map["toolTip"] = i18n("<p>Spawn a shell when systemd crashes. Note: The shell is not password-protected.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "ShowStatus";
-  map["file"] = SYSTEMD;
-  map["type"] = LIST;
-  map["defVal"] = "yes";
-  map["possibleVals"] = QStringList() << "yes" << "no" << "auto";
-  map["toolTip"] = i18n("<p>Show terse service status information while booting.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "CrashChVT";
-  map["file"] = SYSTEMD;
-  map["type"] = LIST;
-  map["defVal"] = "-1";
-  map["possibleVals"] = QStringList() << "-1" << "1" << "2" << "3" << "4" << "5" << "6" << "7" << "8";
-  map["toolTip"] = i18n("<p>Activate the specified virtual terminal when systemd crashes (-1 to deactivate).</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "CPUAffinity";
-  map["file"] = SYSTEMD;
-  map["type"] = MULTILIST;
+  QStringList LogLevelList = QStringList() << "emerg" << "alert" << "crit" << "err" << "warning" << "notice" << "info" << "debug";
+  confOptList.append(confOption(SYSTEMD, "LogLevel", LIST, "info", LogLevelList));
+  QStringList LogTargetList = QStringList() << "console" << "journal" << "syslog" << "kmsg" << "journal-or-kmsg" << "syslog-or-kmsg" << "null";
+  confOptList.append(confOption(SYSTEMD, "LogTarget", LIST, "journal-or-kmsg", LogTargetList));  
+  confOptList.append(confOption(SYSTEMD, "LogColor", BOOL, true));
+  confOptList.append(confOption(SYSTEMD, "LogLocation", BOOL, true));
+  confOptList.append(confOption(SYSTEMD, "DumpCore", BOOL, true));
+  confOptList.append(confOption(SYSTEMD, "CrashShell", BOOL, false));
+  QStringList ShowStatusList = QStringList() << "yes" << "no" << "auto";
+  confOptList.append(confOption(SYSTEMD, "ShowStatus", LIST, "yes", ShowStatusList));
+  QStringList CrashChVTList = QStringList() << "-1" << "1" << "2" << "3" << "4" << "5" << "6" << "7" << "8";
+  confOptList.append(confOption(SYSTEMD, "CrashChVT", LIST, "-1", CrashChVTList));
   QStringList CPUAffinityList;
   for (int i = 1; i <= QThread::idealThreadCount(); ++i)
     CPUAffinityList << QString::number(i);
-  map["possibleVals"] = CPUAffinityList;
-  map["toolTip"] = i18n("<p>The initial CPU affinity for the systemd init process.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "JoinControllers";
-  map["file"] = SYSTEMD;
-  map["type"] = STRING;
-  map["defVal"] = "cpu,cpuacct net_cls,net_prio";
-  map["toolTip"] = i18n("<p>Controllers that shall be mounted in a single hierarchy. Takes a space-separated list of comma-separated controller names, in order to allow multiple joined hierarchies. Pass an empty string to ensure that systemd mounts all controllers in separate hierarchies.</p>");
-  confOptList.append(confOption(map));
-
+  confOptList.append(confOption(SYSTEMD, "CPUAffinity", MULTILIST, CPUAffinityList));
+  confOptList.append(confOption(SYSTEMD, "JoinControllers", STRING, "cpu,cpuacct net_cls,net_prio"));
   if (systemdVersion < 208)
-  {
-    map.clear();
-    map["name"] = "DefaultControllers";
-    map["file"] = SYSTEMD;
-    map["type"] = STRING;
-    map["defVal"] = "cpu";
-    map["toolTip"] = i18n("<p>Configures in which control group hierarchies to create per-service cgroups automatically, in addition to the name=systemd named hierarchy. Takes a space-separated list of controller names. Pass the empty string to ensure that systemd does not touch any hierarchies but its own.</p>");
-    confOptList.append(confOption(map));
-  }
-
-  map.clear();
-  map["name"] = "RuntimeWatchdogSec";
-  map["file"] = SYSTEMD;
-  map["type"] = TIME;
-  map["defVal"] = 0;
-  map["toolTip"] = i18n("<p>The watchdog hardware (/dev/watchdog) will be programmed to automatically reboot the system if it is not contacted within the specified timeout interval. The system manager will ensure to contact it at least once in half the specified timeout interval. This feature requires a hardware watchdog device.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "ShutdownWatchdogSec";
-  map["file"] = SYSTEMD;
-  map["type"] = TIME;
-  map["defVal"] = 10;
-  map["defUnit"] = confOption::min;
-  map["toolTip"] = i18n("<p>This setting may be used to configure the hardware watchdog when the system is asked to reboot. It works as a safety net to ensure that the reboot takes place even if a clean reboot attempt times out. This feature requires a hardware watchdog device.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "CapabilityBoundingSet";
-  map["file"] = SYSTEMD;
-  map["type"] = MULTILIST;
-  map["possibleVals"] = confOption::capabilities;
-  map["toolTip"] = i18n("<p>Capabilities for the systemd daemon and its children.</p>");
-  confOptList.append(confOption(map));
-
+    confOptList.append(confOption(SYSTEMD, "DefaultControllers", STRING, "cpu"));
+  confOptList.append(confOption(SYSTEMD, "RuntimeWatchdogSec", TIME, 0, confOption::s, confOption::s, confOption::ms, confOption::w));
+  confOptList.append(confOption(SYSTEMD, "ShutdownWatchdogSec", TIME, 10, confOption::min, confOption::s, confOption::ms, confOption::w));
+  QStringList CapabilityBoundingSetList = confOption::capabilities;
+  confOptList.append(confOption(SYSTEMD, "CapabilityBoundingSet", MULTILIST, CapabilityBoundingSetList));
   if (systemdVersion >= 209)
   {
-    map.clear();
-    map["name"] = "SystemCallArchitectures";
-    map["file"] = SYSTEMD;
-    map["type"] = MULTILIST;
-    map["possibleVals"] = QStringList() << "native" << "x86" << "x86-64" << "x32" << "arm";
-    map["toolTip"] = i18n("<p>Architectures of which system calls may be invoked on the system.</p>");
-    confOptList.append(confOption(map));
+    QStringList SystemCallArchitecturesList = QStringList() << "native" << "x86" << "x86-64" << "x32" << "arm";
+    confOptList.append(confOption(SYSTEMD, "SystemCallArchitectures", MULTILIST, SystemCallArchitecturesList));
   }
-
-  map.clear();
-  map["name"] = "TimerSlackNSec";
-  map["file"] = SYSTEMD;
-  map["type"] = TIME;
-  map["defVal"] = 0;
-  map["defUnit"] = confOption::ns;
-  map["defReadUnit"] = confOption::ns;
-  map["hasNsec"] = true;
-  map["toolTip"] = i18n("<p>Sets the timer slack for PID 1 which is then inherited to all executed processes, unless overridden individually. The timer slack controls the accuracy of wake-ups triggered by timers.</p>");
-  confOptList.append(confOption(map));
-
+  confOptList.append(confOption(SYSTEMD, "TimerSlackNSec", TIME, 0, confOption::ns, confOption::ns, confOption::ns, confOption::w));
   if (systemdVersion >= 212)
-  {
-    map.clear();
-    map["name"] = "DefaultTimerAccuracySec";
-    map["file"] = SYSTEMD;
-    map["type"] = TIME;
-    map["defVal"] = 60;
-    map["toolTip"] = i18n("<p>The default accuracy of timer units. Note that the accuracy of timer units is also affected by the configured timer slack for PID 1.</p>");
-    confOptList.append(confOption(map));
-  }
-
-  map.clear();
-  map["name"] = "DefaultStandardOutput";
-  map["file"] = SYSTEMD;
-  map["type"] = LIST;
-  map["defVal"] = "journal";
-  map["possibleVals"] = QStringList() << "inherit" << "null" << "tty" << "journal"
-                                      << "journal+console" << "syslog" << "syslog+console"
-                                      << "kmsg" << "kmsg+console";
-  map["toolTip"] = i18n("<p>Sets the default output for all services and sockets.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "DefaultStandardError";
-  map["file"] = SYSTEMD;
-  map["type"] = LIST;
-  map["defVal"] = "inherit";
-  map["possibleVals"] = QStringList() << "inherit" << "null" << "tty" << "journal"
-                                      << "journal+console" << "syslog" << "syslog+console"
-                                      << "kmsg" << "kmsg+console";
-  map["toolTip"] = i18n("<p>Sets the default error output for all services and sockets.</p>");
-  confOptList.append(confOption(map));
-
+    confOptList.append(confOption(SYSTEMD, "DefaultTimerAccuracySec", TIME, 60, confOption::s, confOption::s, confOption::us, confOption::w));
+  QStringList DefaultStandardOutputList = QStringList() << "inherit" << "null" << "tty" << "journal"
+                                                        << "journal+console" << "syslog" << "syslog+console"
+                                                        << "kmsg" << "kmsg+console";
+  confOptList.append(confOption(SYSTEMD, "DefaultStandardOutput", LIST, "journal", DefaultStandardOutputList));
+  confOptList.append(confOption(SYSTEMD, "DefaultStandardError", LIST, "inherit", DefaultStandardOutputList));
   if (systemdVersion >= 209)
   {
-    map.clear();
-    map["name"] = "DefaultTimeoutStartSec";
-    map["file"] = SYSTEMD;
-    map["type"] = TIME;
-    map["defVal"] = 90;
-    map["toolTip"] = i18n("<p>The default timeout for starting of units.</p>");
-    confOptList.append(confOption(map));
-
-    map.clear();
-    map["name"] = "DefaultTimeoutStopSec";
-    map["file"] = SYSTEMD;
-    map["type"] = TIME;
-    map["defVal"] = 90;
-    map["toolTip"] = i18n("<p>The default timeout for stopping of units.</p>");
-    confOptList.append(confOption(map));
-
-    map.clear();
-    map["name"] = "DefaultRestartSec";
-    map["file"] = SYSTEMD;
-    map["type"] = TIME;
-    map["defVal"] = 100;
-    map["defUnit"] = confOption::ms;
-    map["toolTip"] = i18n("<p>The default time to sleep between automatic restart of units.</p>");
-    confOptList.append(confOption(map));
-
-    map.clear();
-    map["name"] = "DefaultStartLimitInterval";
-    map["file"] = SYSTEMD;
-    map["type"] = TIME;
-    map["defVal"] = 10;
-    map["toolTip"] = i18n("<p>Time interval used in start rate limit for services.</p>");
-    confOptList.append(confOption(map));
-
-    map.clear();
-    map["name"] = "DefaultStartLimitBurst";
-    map["file"] = SYSTEMD;
-    map["type"] = INTEGER;
-    map["defVal"] = 5;
-    map["toolTip"] = i18n("<p>Services are not allowed to start more than this number of times within the time interval defined in DefaultStartLimitInterval.</p>");
-    confOptList.append(confOption(map));
+    confOptList.append(confOption(SYSTEMD, "DefaultTimeoutStartSec", TIME, 90, confOption::s, confOption::s, confOption::us, confOption::w));
+    confOptList.append(confOption(SYSTEMD, "DefaultTimeoutStopSec", TIME, 90, confOption::s, confOption::s, confOption::us, confOption::w));
+    confOptList.append(confOption(SYSTEMD, "DefaultRestartSec", TIME, 100, confOption::ms, confOption::s, confOption::us, confOption::w));
+    confOptList.append(confOption(SYSTEMD, "DefaultStartLimitInterval", TIME, 10, confOption::s, confOption::s, confOption::us, confOption::w));
+    confOptList.append(confOption(SYSTEMD, "DefaultStartLimitBurst", INTEGER, 5, 0, 99999));
   }
-
   if (systemdVersion >= 205)
-  {
-    map.clear();
-    map["name"] = "DefaultEnvironment";
-    map["file"] = SYSTEMD;
-    map["type"] = STRING;
-    map["defVal"] = QString("");
-    map["toolTip"] = i18n("<p>Manager environment variables passed to all executed processes. Takes a space-separated list of variable assignments.</p>");
-    confOptList.append(confOption(map));
-  }
-
+    confOptList.append(confOption(SYSTEMD, "DefaultEnvironment", STRING, ""));
   if (systemdVersion >= 211)
   {
-    map.clear();
-    map["name"] = "DefaultCPUAccounting";
-    map["file"] = SYSTEMD;
-    map["type"] = BOOL;
-    map["defVal"] = false;
-    map["toolTip"] = i18n("<p>Default CPU usage accounting.</p>");
-    confOptList.append(confOption(map));
-
-    map.clear();
-    map["name"] = "DefaultBlockIOAccounting";
-    map["file"] = SYSTEMD;
-    map["type"] = BOOL;
-    map["defVal"] = false;
-    map["toolTip"] = i18n("<p>Default block IO accounting.</p>");
-    confOptList.append(confOption(map));
-
-    map.clear();
-    map["name"] = "DefaultMemoryAccounting";
-    map["file"] = SYSTEMD;
-    map["type"] = BOOL;
-    map["defVal"] = false;
-    map["toolTip"] = i18n("<p>Default process and kernel memory accounting.</p>");
-    confOptList.append(confOption(map));
+    confOptList.append(confOption(SYSTEMD, "DefaultCPUAccounting", BOOL, false));
+    confOptList.append(confOption(SYSTEMD, "DefaultBlockIOAccounting", BOOL, false));
+    confOptList.append(confOption(SYSTEMD, "DefaultMemoryAccounting", BOOL, false));
   }
-
-  // Loop through all RESLIMITs
-  QStringList resLimits = QStringList() << "DefaultLimitCPU" << "DefaultLimitFSIZE" << "DefaultLimitDATA"
-                                        << "DefaultLimitSTACK" << "DefaultLimitCORE" << "DefaultLimitRSS"
-                                        << "DefaultLimitNOFILE" << "DefaultLimitAS" << "DefaultLimitNPROC"
-                                        << "DefaultLimitMEMLOCK" << "DefaultLimitLOCKS" << "DefaultLimitSIGPENDING"
-                                        << "DefaultLimitMSGQUEUE" << "DefaultLimitNICE" << "DefaultLimitRTPRIO"
-                                        << "DefaultLimitRTTIME";
-  foreach (QString s, resLimits)
-  {
-    map.clear();
-    map["name"] = s;
-    map["file"] = SYSTEMD;
-    map["type"] = RESLIMIT;
-    map["minVal"] = -1;
-    map["toolTip"] = i18n("<p>Default resource limit for units. Set to -1 for no limit.</p>");
-    confOptList.append(confOption(map));
-  }
-
+  confOptList.append(confOption(SYSTEMD, "DefaultLimitCPU", RESLIMIT));  
+  confOptList.append(confOption(SYSTEMD, "DefaultLimitFSIZE", RESLIMIT));
+  confOptList.append(confOption(SYSTEMD, "DefaultLimitDATA", RESLIMIT));
+  confOptList.append(confOption(SYSTEMD, "DefaultLimitSTACK", RESLIMIT));
+  confOptList.append(confOption(SYSTEMD, "DefaultLimitCORE", RESLIMIT));
+  confOptList.append(confOption(SYSTEMD, "DefaultLimitRSS", RESLIMIT));
+  confOptList.append(confOption(SYSTEMD, "DefaultLimitNOFILE", RESLIMIT));
+  confOptList.append(confOption(SYSTEMD, "DefaultLimitAS", RESLIMIT));
+  confOptList.append(confOption(SYSTEMD, "DefaultLimitNPROC", RESLIMIT));
+  confOptList.append(confOption(SYSTEMD, "DefaultLimitMEMLOCK", RESLIMIT));
+  confOptList.append(confOption(SYSTEMD, "DefaultLimitLOCKS", RESLIMIT));
+  confOptList.append(confOption(SYSTEMD, "DefaultLimitSIGPENDING", RESLIMIT));
+  confOptList.append(confOption(SYSTEMD, "DefaultLimitMSGQUEUE", RESLIMIT));
+  confOptList.append(confOption(SYSTEMD, "DefaultLimitNICE", RESLIMIT));
+  confOptList.append(confOption(SYSTEMD, "DefaultLimitRTPRIO", RESLIMIT));
+  confOptList.append(confOption(SYSTEMD, "DefaultLimitRTTIME", RESLIMIT));
+  
   // journald.conf
-
-  map.clear();
-  map["name"] = "Storage";
-  map["file"] = JOURNALD;
-  map["type"] = LIST;
-  map["defVal"] = "auto";
-  map["possibleVals"] = QStringList() << "volatile" << "persistent" << "auto" << "none";
-  map["toolTip"] = i18n("<p>Where to store log files.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "Compress";
-  map["file"] = JOURNALD;
-  map["type"] = BOOL;
-  map["defVal"] = true;
-  map["toolTip"] = i18n("<p>Compress log files.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "Seal";
-  map["file"] = JOURNALD;
-  map["type"] = BOOL;
-  map["defVal"] = true;
-  map["toolTip"] = i18n("<p>Enable Forward Secure Sealing (FSS) for all persistent journal files.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "SplitMode";
-  map["file"] = JOURNALD;
-  map["type"] = LIST;
+  QStringList StorageList = QStringList() << "volatile" << "persistent" << "auto" << "none";
+  confOptList.append(confOption(JOURNALD, "Storage", LIST, "auto", StorageList));
+  confOptList.append(confOption(JOURNALD, "Compress", BOOL, true));
+  confOptList.append(confOption(JOURNALD, "Seal", BOOL, true));
+  QStringList SplitModeList = QStringList() << "login" << "uid" << "none";
   if (systemdVersion >= 215)
-    map["defVal"] = "uid";
+    confOptList.append(confOption(JOURNALD, "SplitMode", LIST, "uid", SplitModeList));
   else
-    map["defVal"] = "login";
-  map["possibleVals"] = QStringList() << "login" << "uid" << "none";
-  map["toolTip"] = i18n("<p>Whether and how to split log files. If <i>uid</i>, all users will get each their own journal files regardless of whether they possess a login session or not, however system users will log into the system journal. If <i>login</i>, actually logged-in users will get each their own journal files, but users without login session and system users will log into the system journal. If <i>none</i>, journal files are not split up by user and all messages are instead stored in the single system journal.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "SyncIntervalSec";
-  map["file"] = JOURNALD;
-  map["type"] = TIME;
-  map["defVal"] = 5;
-  map["defUnit"] = confOption::min;
-  map["toolTip"] = i18n("<p>The timeout before synchronizing journal files to disk.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "RateLimitInterval";
-  map["file"] = JOURNALD;
-  map["type"] = TIME;
-  map["defVal"] = 30;
-  map["toolTip"] = i18n("<p>Time interval for rate limiting of log messages. Set to 0 to turn off rate-limiting.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "RateLimitBurst";
-  map["file"] = JOURNALD;
-  map["type"] = INTEGER;
-  map["defVal"] = 1000;
-  map["toolTip"] = i18n("<p>Maximum number of messages logged for a unit in the interval specified in RateLimitInterval. Set to 0 to turn off rate-limiting.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "SystemMaxUse";
-  map["file"] = JOURNALD;
-  map["type"] = SIZE;
-  map["defVal"] = QVariant(0.1 * partPersSizeMB).toULongLong();
-  map["maxVal"] = partPersSizeMB;
-  // xgettext:no-c-format
-  map["toolTip"] = i18n("<p>Maximum disk space the persistent journal may take up. Defaults to 10% of file system size.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "SystemKeepFree";
-  map["file"] = JOURNALD;
-  map["type"] = SIZE;
-  map["defVal"] = QVariant(0.15 * partPersSizeMB).toULongLong();
-  map["maxVal"] = partPersSizeMB;
-  // xgettext:no-c-format
-  map["toolTip"] = i18n("<p>Minimum disk space the persistent journal should keep free for other uses. Defaults to 15% of file system size.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "SystemMaxFileSize";
-  map["file"] = JOURNALD;
-  map["type"] = SIZE;
-  map["defVal"] = QVariant(0.125 * 0.1 * partPersSizeMB).toULongLong();
-  map["maxVal"] = partPersSizeMB;
-  map["toolTip"] = i18n("<p>Maximum size of individual journal files on persistent storage. Defaults to 1/8 of SystemMaxUse.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "RuntimeMaxUse";
-  map["file"] = JOURNALD;
-  map["type"] = SIZE;
-  map["defVal"] = QVariant(0.1 * partVolaSizeMB).toULongLong();
-  map["maxVal"] = partVolaSizeMB;
-  // xgettext:no-c-format
-  map["toolTip"] = i18n("<p>Maximum disk space the volatile journal may take up. Defaults to 10% of file system size.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "RuntimeKeepFree";
-  map["file"] = JOURNALD;
-  map["type"] = SIZE;
-  map["defVal"] = QVariant(0.15 * partVolaSizeMB).toULongLong();
-  map["maxVal"] = partVolaSizeMB;
-  // xgettext:no-c-format
-  map["toolTip"] = i18n("<p>Minimum disk space the volatile journal should keep free for other uses. Defaults to 15% of file system size.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "RuntimeMaxFileSize";
-  map["file"] = JOURNALD;
-  map["type"] = SIZE;
-  map["defVal"] = QVariant(0.125 * 0.1 * partVolaSizeMB).toULongLong();
-  map["maxVal"] = partVolaSizeMB;
-  map["toolTip"] = i18n("<p>Maximum size of individual journal files on volatile storage. Defaults to 1/8 of RuntimeMaxUse.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "MaxRetentionSec";
-  map["file"] = JOURNALD;
-  map["type"] = TIME;
-  map["defVal"] = 0;
-  map["defUnit"] = confOption::d;
-  map["toolTip"] = i18n("<p>Maximum time to store journal entries. Set to 0 to disable.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "MaxFileSec";
-  map["file"] = JOURNALD;
-  map["type"] = TIME;
-  map["defVal"] = 30;
-  map["defUnit"] = confOption::d;
-  map["toolTip"] = i18n("<p>Maximum time to store entries in a single journal file before rotating to the next one. Set to 0 to disable.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "ForwardToSyslog";
-  map["file"] = JOURNALD;
-  map["type"] = BOOL;
-  map["defVal"] = true;
-  map["toolTip"] = i18n("<p>Forward journal messages to syslog.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "ForwardToKMsg";
-  map["file"] = JOURNALD;
-  map["type"] = BOOL;
-  map["defVal"] = false;
-  map["toolTip"] = i18n("<p>Forward journal messages to kernel log buffer</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "ForwardToConsole";
-  map["file"] = JOURNALD;
-  map["type"] = BOOL;
-  map["defVal"] = false;
-  map["toolTip"] = i18n("<p>Forward journal messages to the system console. The console can be changed with TTYPath.</p>");
-  confOptList.append(confOption(map));
-
+    confOptList.append(confOption(JOURNALD, "SplitMode", LIST, "login", SplitModeList));
+  confOptList.append(confOption(JOURNALD, "SyncIntervalSec", TIME, 5, confOption::min, confOption::s, confOption::us, confOption::w));
+  confOptList.append(confOption(JOURNALD, "RateLimitInterval", TIME, 10, confOption::s, confOption::s, confOption::us, confOption::h));
+  confOptList.append(confOption(JOURNALD, "RateLimitBurst", INTEGER, 200, 0, 99999));
+  confOptList.append(confOption(JOURNALD, "SystemMaxUse", SIZE, QVariant(0.1 * partPersSizeMB).toULongLong(), partPersSizeMB));
+  confOptList.append(confOption(JOURNALD, "SystemKeepFree", SIZE, QVariant(0.15 * partPersSizeMB).toULongLong(), partPersSizeMB));
+  confOptList.append(confOption(JOURNALD, "SystemMaxFileSize", SIZE, QVariant(0.125 * 0.1 * partPersSizeMB).toULongLong(), partPersSizeMB));
+  confOptList.append(confOption(JOURNALD, "RuntimeMaxUse", SIZE, QVariant(0.1 * partVolaSizeMB).toULongLong(), partVolaSizeMB));
+  confOptList.append(confOption(JOURNALD, "RuntimeKeepFree", SIZE, QVariant(0.15 * partVolaSizeMB).toULongLong(), partVolaSizeMB));
+  confOptList.append(confOption(JOURNALD, "RuntimeMaxFileSize", SIZE, QVariant(0.125 * 0.1 * partVolaSizeMB).toULongLong(), partVolaSizeMB));
+  confOptList.append(confOption(JOURNALD, "MaxRetentionSec", TIME, 0, confOption::d, confOption::s, confOption::s, confOption::year));
+  confOptList.append(confOption(JOURNALD, "MaxFileSec", TIME, 30, confOption::d, confOption::s, confOption::s, confOption::year));
+  confOptList.append(confOption(JOURNALD, "ForwardToSyslog", BOOL, true));
+  confOptList.append(confOption(JOURNALD, "ForwardToKMsg", BOOL, false));
+  confOptList.append(confOption(JOURNALD, "ForwardToConsole", BOOL, false));
   if (systemdVersion >= 212)
-  {
-    map.clear();
-    map["name"] = "ForwardToWall";
-    map["file"] = JOURNALD;
-    map["type"] = BOOL;
-    map["defVal"] = true;
-    map["toolTip"] = i18n("<p>Forward journal messages as wall messages to all logged-in users.</p>");
-    confOptList.append(confOption(map));
-  }
-
-  map.clear();
-  map["name"] = "TTYPath";
-  map["file"] = JOURNALD;
-  map["type"] = STRING;
-  map["defVal"] = "/dev/console";
-  map["toolTip"] = i18n("<p>Forward journal messages to this TTY if ForwardToConsole is set.</p>");
-  confOptList.append(confOption(map));
-
-  QStringList listLogLevel = QStringList() << "MaxLevelStore" << "MaxLevelSyslog"
-                                           << "MaxLevelKMsg" << "MaxLevelConsole";
+    confOptList.append(confOption(JOURNALD, "ForwardToWall", BOOL, true));
+  confOptList.append(confOption(JOURNALD, "TTYPath", STRING, "/dev/console"));
+  QStringList SyslogList = QStringList() << "emerg" << "alert" << "crit" << "err" 
+                                         << "warning" << "notice" << "info" << "debug";
+  confOptList.append(confOption(JOURNALD, "MaxLevelStore", LIST, "debug", SyslogList));
+  confOptList.append(confOption(JOURNALD, "MaxLevelSyslog", LIST, "debug", SyslogList));
+  confOptList.append(confOption(JOURNALD, "MaxLevelKMsg", LIST, "notice", SyslogList));
+  confOptList.append(confOption(JOURNALD, "MaxLevelConsole", LIST, "info", SyslogList));
   if (systemdVersion >= 212)
-    listLogLevel << "MaxLevelWall";
-
-  foreach (QString s, listLogLevel)
-  {
-    map.clear();
-    map["name"] = s;
-    map["file"] = JOURNALD;
-    map["type"] = LIST;
-    if (s == "MaxLevelKMsg")
-      map["defVal"] = "notice";
-    else if (s == "MaxLevelConsole")
-      map["defVal"] = "info";
-    else if (s == "MaxLevelWall")
-      map["defVal"] = "emerg";
-    else
-      map["defVal"] = "debug";
-    map["possibleVals"] = QStringList() << "emerg" << "alert" << "crit" << "err"
-                                        << "warning" << "notice" << "info" << "debug";
-    map["toolTip"] = i18n("<p>Max log level to forward/store to the specified target.</p>");
-    confOptList.append(confOption(map));
-  }
+    confOptList.append(confOption(JOURNALD, "MaxLevelWall", LIST, "emerg", SyslogList));
   
   // logind.conf
-
-  map.clear();
-  map["name"] = "NAutoVTs";
-  map["file"] = LOGIND;
-  map["type"] = INTEGER;
-  map["defVal"] = 6;
-  map["maxVal"] = 12;
-  map["toolTip"] = i18n("<p>Number of virtual terminals (VTs) to allocate by default and which will autospawn. Set to 0 to disable.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "ReserveVT";
-  map["file"] = LOGIND;
-  map["type"] = INTEGER;
-  map["defVal"] = 6;
-  map["maxVal"] = 12;
-  map["toolTip"] = i18n("<p>Virtual terminal that shall unconditionally be reserved for autospawning. Set to 0 to disable.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "KillUserProcesses";
-  map["file"] = LOGIND;
-  map["type"] = BOOL;
-  map["defVal"] = false;
-  map["toolTip"] = i18n("<p>Kill the processes of a user when the user completely logs out.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "KillOnlyUsers";
-  map["file"] = LOGIND;
-  map["type"] = STRING;
-  map["toolTip"] = i18n("<p>Space-separated list of usernames for which only processes will be killed if KillUserProcesses is enabled.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "KillExcludeUsers";
-  map["file"] = LOGIND;
-  map["type"] = STRING;
-  map["defVal"] = "root";
-  map["toolTip"] = i18n("<p>Space-separated list of usernames for which processes will be excluded from being killed if KillUserProcesses is enabled.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "InhibitDelayMaxSec";
-  map["file"] = LOGIND;
-  map["type"] = TIME;
-  map["defVal"] = 5;
-  map["toolTip"] = i18n("<p>Specifies the maximum time a system shutdown or sleep request is delayed due to an inhibitor lock of type delay being active before the inhibitor is ignored and the operation executes anyway.</p>");
-  confOptList.append(confOption(map));
-
-  QStringList listPowerActions = QStringList() << "ignore" << "poweroff" << "reboot" << "halt" << "kexec"
-                                               << "suspend" << "hibernate" << "hybrid-sleep" << "lock";
-  QStringList listPower = QStringList() << "HandlePowerKey" << "HandleSuspendKey"
-                                           << "HandleHibernateKey" << "HandleLidSwitch";
-  if (systemdVersion >= 217)
-    listPower << "HandleLidSwitchDocked";
-  foreach (QString s, listPower)
-  {
-    map.clear();
-    map["name"] = s;
-    map["file"] = LOGIND;
-    map["type"] = LIST;
-    if (s == "HandlePowerKey")
-      map["defVal"] = "poweroff";
-    else if (s == "HandleHibernateKey")
-      map["defVal"] = "hibernate";
-    else if (s == "HandleLidSwitchDocked")
-      map["defVal"] = "ignore";
-    else
-      map["defVal"] = "suspend";
-    map["possibleVals"] = listPowerActions;
-    map["toolTip"] = i18n("<p>Controls whether logind shall handle the system power and sleep keys and the lid switch to trigger power actions.</p>");
-    confOptList.append(confOption(map));
-  }
-
-  map.clear();
-  map["name"] = "PowerKeyIgnoreInhibited";
-  map["file"] = LOGIND;
-  map["type"] = BOOL;
-  map["defVal"] = false;
-  map["toolTip"] = i18n("<p>Controls whether actions triggered by the power key are subject to inhibitor locks.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "SuspendKeyIgnoreInhibited";
-  map["file"] = LOGIND;
-  map["type"] = BOOL;
-  map["defVal"] = false;
-  map["toolTip"] = i18n("<p>Controls whether actions triggered by the suspend key are subject to inhibitor locks.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "HibernateKeyIgnoreInhibited";
-  map["file"] = LOGIND;
-  map["type"] = BOOL;
-  map["defVal"] = false;
-  map["toolTip"] = i18n("<p>Controls whether actions triggered by the hibernate key are subject to inhibitor locks.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "LidSwitchIgnoreInhibited";
-  map["file"] = LOGIND;
-  map["type"] = BOOL;
-  map["defVal"] = true;
-  map["toolTip"] = i18n("<p>Controls whether actions triggered by the lid switch are subject to inhibitor locks.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "IdleAction";
-  map["file"] = LOGIND;
-  map["type"] = LIST;
-  map["defVal"] = "ignore";
-  map["possibleVals"] = listPowerActions;
-  map["toolTip"] = i18n("<p>Configures the action to take when the system is idle.</p>");
-  confOptList.append(confOption(map));
-
-  map.clear();
-  map["name"] = "IdleActionSec";
-  map["file"] = LOGIND;
-  map["type"] = TIME;
-  map["defVal"] = 0;
-  map["toolTip"] = i18n("<p>Configures the delay after which the action configured in IdleAction is taken after the system is idle.</p>");
-  confOptList.append(confOption(map));
-
-  if (systemdVersion >= 212)
-  {
-    map.clear();
-    map["name"] = "RemoveIPC";
-    map["file"] = LOGIND;
-    map["type"] = BOOL;
-    map["defVal"] = true;
-    map["toolTip"] = i18n("<p>Controls whether System V and POSIX IPC objects belonging to the user shall be removed when the user fully logs out.</p>");
-    confOptList.append(confOption(map));
-  }
-
-  // coredump.conf
-  if (systemdVersion >= 215)
-  {
-    map.clear();
-    map["name"] = "Storage";
-    map["file"] = COREDUMP;
-    map["type"] = LIST;
-    map["defVal"] = "external";
-    map["possibleVals"] = QStringList() << "none" << "external" << "journal" << "both";
-    map["toolTip"] = i18n("<p>Controls where to store cores. When <i>none</i>, the coredumps will be logged but not stored permanently. When <i>external</i>, cores will be stored in /var/lib/systemd/coredump. When <i>journal</i>, cores will be stored in the journal and rotated following normal journal rotation patterns.</p>");
-    confOptList.append(confOption(map));
-
-    map.clear();
-    map["name"] = "Compress";
-    map["file"] = COREDUMP;
-    map["type"] = BOOL;
-    map["defVal"] = true;
-    map["toolTip"] = i18n("<p>Controls compression for external storage.</p>");
-    confOptList.append(confOption(map));
-
-    map.clear();
-    map["name"] = "ProcessSizeMax";
-    map["file"] = COREDUMP;
-    map["type"] = SIZE;
-    map["defVal"] = 2*1024;
-    map["maxVal"] = partPersSizeMB;
-    map["toolTip"] = i18n("<p>The maximum size of a core which will be processed. Coredumps exceeding this size will be logged, but the backtrace will not be generated and the core will not be stored.</p>");
-    confOptList.append(confOption(map));
-
-    map.clear();
-    map["name"] = "ExternalSizeMax";
-    map["file"] = COREDUMP;
-    map["type"] = SIZE;
-    map["defVal"] = 2*1024;
-    map["maxVal"] = partPersSizeMB;
-    map["toolTip"] = i18n("<p>The maximum (uncompressed) size of a core to be saved.</p>");
-    confOptList.append(confOption(map));
-
-    map.clear();
-    map["name"] = "JournalSizeMax";
-    map["file"] = COREDUMP;
-    map["type"] = SIZE;
-    map["defVal"] = 767;
-    map["maxVal"] = partPersSizeMB;
-    map["toolTip"] = i18n("<p>The maximum (uncompressed) size of a core to be saved.</p>");
-    confOptList.append(confOption(map));
-
-    map.clear();
-    map["name"] = "MaxUse";
-    map["file"] = COREDUMP;
-    map["type"] = SIZE;
-    map["defVal"] = QVariant(0.1 * partPersSizeMB).toULongLong();
-    map["maxVal"] = partPersSizeMB;
-    // xgettext:no-c-format
-    map["toolTip"] = i18n("<p>Old coredumps are removed as soon as the total disk space taken up by coredumps grows beyond this limit. Defaults to 10% of the total disk size.</p>");
-    confOptList.append(confOption(map));
-
-    map.clear();
-    map["name"] = "KeepFree";
-    map["file"] = COREDUMP;
-    map["type"] = SIZE;
-    map["defVal"] = QVariant(0.15 * partPersSizeMB).toULongLong();
-    map["maxVal"] = partPersSizeMB;
-    // xgettext:no-c-format
-    map["toolTip"] = i18n("<p>Minimum disk space to keep free. Defaults to 15% of the total disk size.</p>");
-    confOptList.append(confOption(map));
-  }
-
-  /* We can dismiss these options now...
+  confOptList.append(confOption(LOGIND, "NAutoVTs", INTEGER, 6, 0, 12));
+  confOptList.append(confOption(LOGIND, "ReserveVT", INTEGER, 6, 0, 12));
+  confOptList.append(confOption(LOGIND, "KillUserProcesses", BOOL, false));
+  confOptList.append(confOption(LOGIND, "KillOnlyUsers", STRING, ""));
+  confOptList.append(confOption(LOGIND, "KillExcludeUsers", STRING, "root"));
+  confOptList.append(confOption(LOGIND, "InhibitDelayMaxSec", TIME, 5, confOption::s, confOption::s, confOption::us, confOption::d));
+  QStringList HandlePowerEvents = QStringList() << "ignore" << "poweroff" << "reboot" << "halt" << "kexec" << "suspend" << "hibernate" << "hybrid-sleep" << "lock";
+  confOptList.append(confOption(LOGIND, "HandlePowerKey", LIST, "poweroff", HandlePowerEvents));
+  confOptList.append(confOption(LOGIND, "HandleSuspendKey", LIST, "suspend", HandlePowerEvents));
+  confOptList.append(confOption(LOGIND, "HandleHibernateKey", LIST, "hibernate", HandlePowerEvents));
+  confOptList.append(confOption(LOGIND, "HandleLidSwitch", LIST, "suspend", HandlePowerEvents));
+  confOptList.append(confOption(LOGIND, "PowerKeyIgnoreInhibited", BOOL, false));
+  confOptList.append(confOption(LOGIND, "SuspendKeyIgnoreInhibited", BOOL, false));
+  confOptList.append(confOption(LOGIND, "HibernateKeyIgnoreInhibited", BOOL, false));
+  confOptList.append(confOption(LOGIND, "LidSwitchIgnoreInhibited", BOOL, true));
+  confOptList.append(confOption(LOGIND, "IdleAction", LIST, "ignore", HandlePowerEvents));
+  confOptList.append(confOption(LOGIND, "IdleActionSec", TIME, 0, confOption::s, confOption::s, confOption::us, confOption::d));
   if (systemdVersion < 207)
   {
     confOptList.append(confOption(LOGIND, "Controllers", STRING, ""));
     confOptList.append(confOption(LOGIND, "ResetControllers", STRING, "cpu"));
   }
-  */
+  if (systemdVersion >= 212)
+  {
+    confOptList.append(confOption(LOGIND, "RemoveIPC", BOOL, true));
+  }
+  
+  if (systemdVersion >= 215)
+  {  
+    // coredump.conf
+    QStringList CoreStorage = QStringList() << "none" << "external" << "journal" << "both";
+    confOptList.append(confOption(COREDUMP, "Storage", LIST, "external", CoreStorage));
+    confOptList.append(confOption(COREDUMP, "Compress", BOOL, true));
+    confOptList.append(confOption(COREDUMP, "ProcessSizeMax", SIZE, 2*1024, partPersSizeMB));
+    confOptList.append(confOption(COREDUMP, "ExternalSizeMax", SIZE, 2*1024, partPersSizeMB));
+    confOptList.append(confOption(COREDUMP, "JournalSizeMax", SIZE, 767, partPersSizeMB));
+    confOptList.append(confOption(COREDUMP, "MaxUse", SIZE, QVariant(0.1 * partPersSizeMB).toULongLong(), partPersSizeMB));
+    confOptList.append(confOption(COREDUMP, "KeepFree", SIZE, QVariant(0.15 * partPersSizeMB).toULongLong(), partPersSizeMB));
+  }
 }
 
-void kcmsystemd::readConfFile(int fileindex)
+void kcmsystemd::initializeInterface()
 {
-  QFile file (etcDir + "/" + listConfFiles.at(fileindex));
-  if (file.open(QIODevice::ReadOnly | QIODevice::Text))
+  // This function must only be run once
+  timesLoad = timesLoad + 1;
+
+  // Populate comboboxes
+  QList<QComboBox *> listCmb = this->findChildren<QComboBox *>();
+  foreach (QComboBox *cmb, listCmb)
   {
+    QString basename = cmb->objectName().remove(QRegExp("^cmb"));
+    int index = confOptList.indexOf(confOption(basename));
+    
+    if (index > -1)
+      cmb->addItems(confOptList.at(index).possibleVals);
+  }
+  ui.cmbCrashChVT_0->setItemData(0, "Off", Qt::DisplayRole); // needs special treatment
+  QStringList allowUnitTypes = QStringList() << "All unit types" << "Targets" << "Services"
+                                             << "Devices" << "Mounts" << "Automounts" << "Swaps" 
+                                             << "Sockets" << "Paths" << "Timers" << "Snapshots" 
+                                             << "Slices" << "Scopes";
+  for (int i = 0; i < allowUnitTypes.size(); i++)
+    ui.cmbUnitTypes->addItem(allowUnitTypes[i]);
+  
+  // Set max values for specific spinboxes
+  QList<QSpinBox *> listSpn = this->findChildren<QSpinBox *>();
+  foreach(QSpinBox *spn, listSpn)
+  {
+    QString basename = spn->objectName().remove(QRegExp("^spn"));
+    int index = confOptList.indexOf(confOption(basename));
+    if (index > -1)
+    {
+      // Only for these two types of options (not TIME)
+      if (confOptList.at(index).type == INTEGER || confOptList.at(index).type == SIZE)
+      {
+        // These three spinboxes set their own maximums dynamically
+        if (!basename.contains(QRegExp("(MaxUse_1|KeepFree_1|MaxFileSize_1)")))
+          spn->setMaximum(confOptList.at(index).maxVal);
+      }
+    }
+  }
+}
+
+void kcmsystemd::readConfFile(QString filename)
+{ 
+  QFile file (etcDir + "/" + filename);
+  if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
     QTextStream in(&file);
     QString line = in.readLine();
 
     while(!line.isNull())
     {
-      if (!line.startsWith('#') && !line.startsWith('[') && !line.isEmpty())
+      for (int i = 0; i < confOptList.size(); ++i)
       {
-        // qDebug() << "line: " << line;
-        int index = confOptList.indexOf(confOption(QString(line.section("=",0,0).trimmed() + "_" + QString::number(fileindex))));
-        if (index >= 0)
+        
+        if (filename == "system.conf" && 
+            confOptList.at(i) == confOption(QString(line.section("=",0,0).trimmed()) + "_0"))
         {
-          if (confOptList[index].setValueFromFile(line) == -1)
-            displayMsgWidget(KMessageWidget::Warning,
-                             i18n("\"%1\" is not a valid value for %2. Using default value for this parameter.", line.section("=",1).trimmed(), confOptList.at(index).realName));
+          confOptList[i].setValueFromFile(line);
+          break;
         }
+        else if (filename == "journald.conf" &&
+                  confOptList.at(i) == confOption(QString(line.section("=",0,0).trimmed()) + "_1"))
+        {
+          confOptList[i].setValueFromFile(line);
+          break;
+        }            
+        else if (filename == "logind.conf" && 
+                  confOptList.at(i) == confOption(QString(line.section("=",0,0).trimmed()) + "_2"))
+        {
+          confOptList[i].setValueFromFile(line);
+          break;
+        }
+        
+        else if (filename == "coredump.conf" && 
+                  confOptList.at(i) == confOption(QString(line.section("=",0,0).trimmed()) + "_3"))
+        {
+          confOptList[i].setValueFromFile(line);
+          break;
+        }
+
       }
+
       line = in.readLine();
     } // read lines until empty
-
-    qDebug() << QString("Successfully read " + etcDir + "/" + listConfFiles.at(fileindex));
+        
   } // if file open
-  else
-    displayMsgWidget(KMessageWidget::Warning,
-                     i18n("Failed to read %1/%2. Using default values.", etcDir, listConfFiles.at(fileindex)));
+  else 
+    KMessageBox::error(this, i18n("Failed to read %1/%2. Using default values.", etcDir, filename));
 }
 
-void kcmsystemd::setupConf()
+void kcmsystemd::applyToInterface()
 {
-  // Sets up the configfile model and tableview
-
-  confModel = new ConfModel(this);
-  proxyModelConf = new QSortFilterProxyModel(this);
-  proxyModelConf->setSourceModel(confModel);
-
-  ui.tblConf->setModel(proxyModelConf);
-  
-  // Use a custom delegate to enable different editor elements in the QTableView
-  ConfDelegate *myDelegate;
-  myDelegate = new ConfDelegate(this);
-  ui.tblConf->setItemDelegate(myDelegate);
-
-  ui.tblConf->setColumnHidden(2, true);
-  ui.tblConf->resizeColumnsToContents();
+  // Loop through all confOptions and update interface
+  foreach(confOption i, confOptList)
+  {
+    if (i.type == BOOL)
+    {
+      QCheckBox *chk = this->findChild<QCheckBox *>("chk" + i.name);
+      if (chk)
+        chk->setChecked(i.getValue().toBool());
+    }
+    else if (i.type == STRING)
+    {
+      QLineEdit *le = this->findChild<QLineEdit *>("le" + i.name);
+      if (le)
+        le->setText(i.getValue().toString());
+    }
+    else if (i.type == INTEGER)
+    {
+      QSpinBox *spn = this->findChild<QSpinBox *>("spn" + i.name);
+      if (spn)
+        spn->setValue(i.getValue().toInt());
+    }
+    else if (i.type == TIME)
+    {
+      QSpinBox *spn = this->findChild<QSpinBox *>("spn" + i.name);
+      if (spn)
+        spn->setValue(i.getValue().toInt());
+    }
+    else if (i.type == LIST)
+    {
+      QComboBox *cmb = this->findChild<QComboBox *>("cmb" + i.name);
+      if (cmb)
+        cmb->setCurrentIndex(i.possibleVals.indexOf(i.getValue().toString()));
+    }
+    else if (i.type == SIZE)
+    {
+      QString basename = i.name;
+      basename.remove(QRegExp("^System|^Runtime"));
+      QSpinBox *spn = this->findChild<QSpinBox *>("spn" + basename);
+      if (spn)
+      {
+        if (isPersistent && i.name.contains("System"))
+          spn->setValue(i.getValue().toULongLong());
+        
+        else if (!isPersistent && i.name.contains("Runtime"))
+          spn->setValue(i.getValue().toULongLong());
+        
+        else if (!i.name.contains(QRegExp("^(System|Runtime)")))
+          spn->setValue(i.getValue().toULongLong());
+      }
+      QCheckBox *chk = this->findChild<QCheckBox *>("chk" + basename);
+      if (chk)
+      {
+        if ((isPersistent && i.name.contains("System")) || (!isPersistent && i.name.contains("Runtime")))
+        {
+          if (i.getValue() == i.defVal)
+            chk->setChecked(Qt::Checked);
+          else
+            chk->setChecked(Qt::Unchecked);
+        }
+      }      
+      
+    }
+    
+  }
 }
 
 void kcmsystemd::setupUnitslist()
 {
-  // Sets up the units list initially
-
   // Register the meta type for storing units
   qDBusRegisterMetaType<SystemdUnit>();
-
-  QMap<filterType, QString> filters;
-  filters[activeState] = "";
-  filters[unitType] = "";
-  filters[unitName] = "";
-
-  // QList<SystemdUnit> *ptrUnits;
-  // ptrUnits = &unitslist;
-
-  // Setup the system unit model
-  systemUnitModel = new UnitModel(this, &unitslist);
-  systemUnitFilterModel = new SortFilterUnitModel(this);
-  systemUnitFilterModel->setDynamicSortFilter(false);
-  systemUnitFilterModel->initFilterMap(filters);
-  systemUnitFilterModel->setSourceModel(systemUnitModel);
-  ui.tblUnits->setModel(systemUnitFilterModel);
-  ui.tblUnits->sortByColumn(3, Qt::AscendingOrder);
-
-  // Setup the user unit model
-  userUnitModel = new UnitModel(this, &userUnitslist, userBusPath);
-  userUnitFilterModel = new SortFilterUnitModel(this);
-  userUnitFilterModel->setDynamicSortFilter(false);
-  userUnitFilterModel->initFilterMap(filters);
-  userUnitFilterModel->setSourceModel(userUnitModel);
-  ui.tblUserUnits->setModel(userUnitFilterModel);
-  ui.tblUserUnits->sortByColumn(3, Qt::AscendingOrder);
-
-  slotChkShowUnits(-1);
-}
-
-void kcmsystemd::setupSessionlist()
-{
-  // Sets up the session list initially
-
-  // Register the meta type for storing units
-  qDBusRegisterMetaType<SystemdSession>();
-
-  // Setup model for session list
-  sessionModel = new QStandardItemModel(this);
+  
+  // Initialize some variables
+  timesLoad = 0, lastRowChecked = 0;
+  
+  // Setup models for unitslist
+  unitsModel = new QStandardItemModel(this);
+  proxyModelAct = new QSortFilterProxyModel (this);
+  proxyModelUnitId = new QSortFilterProxyModel (this);
+  proxyModelAct->setSourceModel(unitsModel);
+  proxyModelUnitId->setSourceModel(proxyModelAct);
 
   // Install eventfilter to capture mouse move events
-  ui.tblSessions->viewport()->installEventFilter(this);
-
+  ui.tblServices->viewport()->installEventFilter(this);
+  
   // Set header row
-  sessionModel->setHorizontalHeaderItem(0, new QStandardItem(i18n("Session ID")));
-  sessionModel->setHorizontalHeaderItem(1, new QStandardItem(i18n("Session Object Path"))); // This column is hidden
-  sessionModel->setHorizontalHeaderItem(2, new QStandardItem(i18n("State")));
-  sessionModel->setHorizontalHeaderItem(3, new QStandardItem(i18n("User ID")));
-  sessionModel->setHorizontalHeaderItem(4, new QStandardItem(i18n("User Name")));
-  sessionModel->setHorizontalHeaderItem(5, new QStandardItem(i18n("Seat ID")));
+  unitsModel->setHorizontalHeaderItem(0, new QStandardItem(QString("Load state")));
+  unitsModel->setHorizontalHeaderItem(1, new QStandardItem(QString("Active state")));
+  unitsModel->setHorizontalHeaderItem(2, new QStandardItem(QString("Unit state")));
+  unitsModel->setHorizontalHeaderItem(3, new QStandardItem(QString("Unit")));
 
   // Set model for QTableView (should be called after headers are set)
-  ui.tblSessions->setModel(sessionModel);
-  ui.tblSessions->setColumnHidden(1, true);
-
-  // Add all the sessions
-  slotRefreshSessionList();
-}
-
-void kcmsystemd::setupTimerlist()
-{
-  // Sets up the timer list initially
-
-  // Setup model for timer list
-  timerModel = new QStandardItemModel(this);
-
-  // Install eventfilter to capture mouse move events
-  // ui.tblTimers->viewport()->installEventFilter(this);
-
-  // Set header row
-  timerModel->setHorizontalHeaderItem(0, new QStandardItem(i18n("Timer")));
-  timerModel->setHorizontalHeaderItem(1, new QStandardItem(i18n("Next")));
-  timerModel->setHorizontalHeaderItem(2, new QStandardItem(i18n("Left")));
-  timerModel->setHorizontalHeaderItem(3, new QStandardItem(i18n("Last")));
-  timerModel->setHorizontalHeaderItem(4, new QStandardItem(i18n("Passed")));
-  timerModel->setHorizontalHeaderItem(5, new QStandardItem(i18n("Activates")));
-
-  // Set model for QTableView (should be called after headers are set)
-  ui.tblTimers->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-  ui.tblTimers->setModel(timerModel);
-  ui.tblTimers->sortByColumn(1, Qt::AscendingOrder);
-
-  // Setup a timer that updates the left and passed columns every 5secs
-  timer = new QTimer(this);
-  connect(timer, SIGNAL(timeout()), this, SLOT(slotUpdateTimers()));
-  timer->start(1000);
-
-  slotRefreshTimerList();
+  ui.tblServices->setModel(proxyModelUnitId);
+  
+  // Connect the currentRowChanged signal
+  QItemSelectionModel *selectionModel = ui.tblServices->selectionModel();
+  connect(selectionModel, SIGNAL(currentRowChanged(const QModelIndex &, const QModelIndex &)), this, SLOT(slotTblRowChanged(const QModelIndex &, const QModelIndex &)));
+  
+  // Setup initial filters and sorting
+  ui.tblServices->sortByColumn(3, Qt::AscendingOrder);
+  proxyModelUnitId->setSortCaseSensitivity(Qt::CaseInsensitive);
+  slotChkShowUnits();
+  
+  // Add all the units
+  slotRefreshUnitsList();
 }
 
 void kcmsystemd::defaults()
 {
-  if (KMessageBox::warningYesNo(this, i18n("Load default settings for all files?")) == KMessageBox::Yes)
+  if (KMessageBox::warningYesNo(this, i18n("Load deafult settings for all tabs?")) == KMessageBox::Yes)
   { 
     //defaults for system.conf
     for (int i = 0; i < confOptList.size(); ++i)
     {
       confOptList[i].setToDefault();
+      confOptList[i].active = false;
+      if (confOptList.at(i).type == RESLIMIT)
+        confOption::resLimitsMap[confOptList.at(i).name] = confOptList.at(i).getValue();
     }
-    emit changed (true);
+    applyToInterface();
   }
 }
 
 void kcmsystemd::save()
 {  
   QString systemConfFileContents;
-  systemConfFileContents.append("# " + etcDir + "/system.conf\n# Generated by kcmsystemd control module v" + SYSTEMD_KCM_VERSION + ".\n");
+  systemConfFileContents.append("# " + etcDir + "/system.conf\n# Generated by kcmsystemd control module v." + KCM_SYSTEMD_VERSION + ".\n");
   systemConfFileContents.append("[Manager]\n");
   foreach (confOption i, confOptList)
   {
@@ -1141,7 +642,7 @@ void kcmsystemd::save()
   }
 
   QString journaldConfFileContents;
-  journaldConfFileContents.append("# " + etcDir + "/journald.conf\n# Generated by kcmsystemd control module v" + SYSTEMD_KCM_VERSION + ".\n");
+  journaldConfFileContents.append("# " + etcDir + "/journald.conf\n# Generated by kcmsystemd control module v." + KCM_SYSTEMD_VERSION + ".\n");
   journaldConfFileContents.append("[Journal]\n");
   foreach (confOption i, confOptList)
   {
@@ -1150,7 +651,7 @@ void kcmsystemd::save()
   }  
   
   QString logindConfFileContents;
-  logindConfFileContents.append("# " + etcDir + "/logind.conf\n# Generated by kcmsystemd control module v" + SYSTEMD_KCM_VERSION + ".\n");
+  logindConfFileContents.append("# " + etcDir + "/logind.conf\n# Generated by kcmsystemd control module v." + KCM_SYSTEMD_VERSION + ".\n");
   logindConfFileContents.append("[Login]\n");
   foreach (confOption i, confOptList)
   {
@@ -1159,7 +660,7 @@ void kcmsystemd::save()
   }
   
   QString coredumpConfFileContents;
-  coredumpConfFileContents.append("# " + etcDir + "/coredump.conf\n# Generated by kcmsystemd control module v" + SYSTEMD_KCM_VERSION + ".\n");
+  coredumpConfFileContents.append("# " + etcDir + "/coredump.conf\n# Generated by kcmsystemd control module v." + KCM_SYSTEMD_VERSION + ".\n");
   coredumpConfFileContents.append("[Coredump]\n");
   foreach (confOption i, confOptList)
   {
@@ -1185,373 +686,725 @@ void kcmsystemd::save()
     files["coredump.conf"] = coredumpConfFileContents;  
   helperArgs["files"] = files;
   
-  // Action saveAction("org.kde.kcontrol.kcmsystemd.save");
-  Action saveAction = authAction();
-  saveAction.setHelperId("org.kde.kcontrol.kcmsystemd");
-  saveAction.setArguments(helperArgs);
-
-  ExecuteJob *job = saveAction.execute();
-
-  if (!job->exec())
-    displayMsgWidget(KMessageWidget::Error,
-                     i18n("Unable to authenticate/execute the action: %1", job->error()));
-  else
-    displayMsgWidget(KMessageWidget::Positive,
-                     i18n("Configuration files successfully written to: %1", helperArgs["etcDir"].toString()));
+  // Call the helper to write the configuration files
+  Action *saveAction = authAction();
+  saveAction->setArguments(helperArgs);
+  ActionReply reply = saveAction->execute();
+  
+  // Respond to reply of the helper
+  if(reply.failed())
+  { // Writing the configuration files failed
+    if (reply.type() == ActionReply::KAuthError) // Authorization error
+      KMessageBox::error(this, i18n("Unable to authenticate/execute the action: code %1", reply.errorCode()));
+    else // Other error
+      KMessageBox::error(this, i18n("Unable to write the (%1) file:\n%2", reply.data()["filename"].toString(), reply.data()["errorDescription"].toString()));
+  } else // Writing succeeded
+    KMessageBox::information(this, i18n("Configuration files succesfully written to: %1", helperArgs["etcDir"].toString()));
 }
 
-void kcmsystemd::slotConfChanged(const QModelIndex &, const QModelIndex &)
+void kcmsystemd::slotUpdateConfOption()
 {
-  // qDebug() << "dataChanged emitted";
+  // qDebug() << "slotUpdateConfOption called!";
+  // Updates confOptions when user changes ui elements
+  
+  QString name = QObject::sender()->objectName().remove(QRegExp("^(chk|spn|cmb|le)"));
+  confOptList[confOptList.indexOf(confOption(name))].active = true;
+  
+  if (QObject::sender()->objectName().contains(QRegExp("^(chk|spn|cmb|le)")))
+  {    
+    if (QObject::sender()->objectName().contains(QRegExp("^chk")))
+    {
+      // Checkboxes
+      QCheckBox *chk = this->findChild<QCheckBox *>(QObject::sender()->objectName());
+      if (chk)
+      {
+        // qDebug() << name << " changed to " << chk->isChecked();
+        confOptList[confOptList.indexOf(confOption(name))].setValue(chk->isChecked());
+      }
+      
+    } else if (QObject::sender()->objectName().contains(QRegExp("^spn")))
+    {
+      // Spinboxes
+      QSpinBox *spn = this->findChild<QSpinBox *>(QObject::sender()->objectName());
+      if (spn)
+      {
+        // qDebug() << name << " changed to " << spn->value();
+        confOptList[confOptList.indexOf(confOption(name))].setValue(spn->value());
+      }
+    
+    } else if (QObject::sender()->objectName().contains(QRegExp("^cmb")))
+    {
+      // Comboboxes
+      QComboBox *cmb = this->findChild<QComboBox *>(QObject::sender()->objectName());
+      if (cmb)
+      {
+        // qDebug() << name << " changed to " << cmb->currentText();
+        if (cmb->objectName() == "cmbCrashChVT_0" && cmb->currentText() == "Off")
+          confOptList[confOptList.indexOf(confOption(name))].setValue("-1");
+        else
+          confOptList[confOptList.indexOf(confOption(name))].setValue(cmb->currentText());
+      }
+    } else if (QObject::sender()->objectName().contains(QRegExp("^le")))
+    {
+      // Lineedits
+      QLineEdit *le = this->findChild<QLineEdit *>(QObject::sender()->objectName());
+      if (le)
+      {
+        // qDebug() << name << " changed to " << le->text();
+        confOptList[confOptList.indexOf(confOption(name))].setValue(le->text());
+      }
+    }
+
+  }
+  emit changed(true);
+}
+
+void kcmsystemd::slotJrnlStorageChanged(int index)
+{
+  QStringList vars = QStringList() << "MaxUse_1" << "KeepFree_1" << "MaxFileSize_1";
+
+  if (index == 3) {
+    // no storage of logs
+    ui.grpSizeRotation->setEnabled(0);
+    ui.grpTimeRotation->setEnabled(0);
+    ui.cmbSplitMode_1->setEnabled(0);
+    ui.lblSplitMode_1->setEnabled(0);
+  
+  } else {
+    // storage of logs
+    ui.grpSizeRotation->setEnabled(1);
+    ui.grpTimeRotation->setEnabled(1);
+    ui.cmbSplitMode_1->setEnabled(1);
+    ui.lblSplitMode_1->setEnabled(1);
+
+    if (index == 1 || (index == 2 && varLogDirExists)) {
+      // using persistent storage:
+      qDebug() << "Using persistent storage of logs.";
+      isPersistent = true;
+  
+      foreach (QString i, vars)
+      {
+        // Set spinboxes to persistent values and maximums
+        QSpinBox *spn = this->findChild<QSpinBox *>("spn" + i);
+        if (spn)
+        {
+          spn->setMaximum(partPersSizeMB);
+          spn->setValue(confOptList.at(confOptList.indexOf(confOption(QString("System" + i)))).getValue().toULongLong());
+        }
+       
+        // If current values are defaults, check checkboxes else uncheck them
+        QCheckBox *chk = this->findChild<QCheckBox *>("chk" + i);
+        if (confOptList[confOptList.indexOf(confOption(QString("System" + i)))].isDefault() && chk)
+          chk->setCheckState(Qt::Checked);
+        else
+          chk->setCheckState(Qt::Unchecked);
+      }
+      
+    } else if (index == 0 || (index == 2 && !varLogDirExists)) {
+      // using volatile storage:
+      qDebug() << "Using volatile storage of logs.";
+      isPersistent = false;
+      
+      foreach (QString i, vars)
+      {
+        // Set spinboxes to volatile values and maximums
+        QSpinBox *spn = this->findChild<QSpinBox *>("spn" + i);
+        if (spn)
+        {
+          spn->setValue(confOptList.at(confOptList.indexOf(confOption(QString("Runtime" + i)))).getValue().toULongLong());
+          spn->setMaximum(partVolaSizeMB);
+        }
+        
+        // If current values are defaults, check checkboxes else uncheck them
+        QCheckBox *chk = this->findChild<QCheckBox *>("chk" + i);
+        if (confOptList[confOptList.indexOf(confOption( QString("Runtime" + i)))].isDefault() && chk)
+          chk->setCheckState(Qt::Checked);
+        else
+          chk->setCheckState(Qt::Unchecked);
+      }
+      
+    }
+  }
+  emit changed(true);
+}
+
+void kcmsystemd::slotJrnlStorageChkBoxes(int state)
+{
+  // When checkboxes are checked, set values to defaults and disable ui elements
+  QString basename = QString(QObject::sender()->objectName().remove("chk"));
+  QSpinBox *spn = this->findChild<QSpinBox *>("spn" + basename);
+
+  if (state == Qt::Checked)
+  {
+    if (isPersistent)     
+    {
+      confOptList[confOptList.indexOf(confOption("System" + basename))].setToDefault();
+      if (spn)
+        spn->setValue(confOptList.at(confOptList.indexOf(confOption(QString("System" + basename)))).getValue().toULongLong());
+    }
+    else if (!isPersistent)
+    {
+      confOptList[confOptList.indexOf(confOption("Runtime" + basename))].setToDefault();
+      if (spn)
+        spn->setValue(confOptList.at(confOptList.indexOf(confOption(QString("Runtime" + basename)))).getValue().toULongLong());
+    }
+    QList<QWidget *> lst = this->findChildren<QWidget *>(QRegExp("(lbl|spn)\\d?" + basename));
+    foreach (QWidget *wdgt, lst)
+      wdgt->setEnabled(false);
+  }
+  else
+  {
+    // disable ui elements
+    QList<QWidget *> lst = this->findChildren<QWidget *>(QRegExp("(lbl|spn)\\d?" + basename));
+    foreach (QWidget *wdgt, lst)
+      wdgt->setEnabled(true);
+  }  
+
+  emit changed(true);
+}
+
+void kcmsystemd::slotSpnMaxUseChanged()
+{
+  if (isPersistent)
+    confOptList[confOptList.indexOf(confOption("SystemMaxUse_1"))].setValue(ui.spnMaxUse_1->value());
+  else
+    confOptList[confOptList.indexOf(confOption("RuntimeMaxUse_1"))].setValue(ui.spnMaxUse_1->value());
+  emit changed(true);
+}
+
+void kcmsystemd::slotSpnKeepFreeChanged()
+{
+  if (isPersistent)
+    confOptList[confOptList.indexOf(confOption("SystemKeepFree_1"))].setValue(ui.spnKeepFree_1->value());
+  else
+    confOptList[confOptList.indexOf(confOption("RuntimeKeepFree_1"))].setValue(ui.spnKeepFree_1->value());
+  emit changed(true);
+}
+
+void kcmsystemd::slotSpnMaxFileSizeChanged()
+{
+  if (isPersistent)
+    confOptList[confOptList.indexOf(confOption("SystemMaxFileSize_1"))].setValue(ui.spnMaxFileSize_1->value());
+  else
+    confOptList[confOptList.indexOf(confOption("RuntimeMaxFileSize_1"))].setValue(ui.spnMaxFileSize_1->value());
+  emit changed(true);
+}
+
+void kcmsystemd::slotFwdToSyslogChanged()
+{
+  if ( ui.chkForwardToSyslog_1->isChecked())
+    ui.cmbMaxLevelSyslog_1->setEnabled(true);
+  else
+    ui.cmbMaxLevelSyslog_1->setEnabled(false);
+  emit changed(true);
+}
+
+void kcmsystemd::slotFwdToKmsgChanged()
+{
+  if ( ui.chkForwardToKMsg_1->isChecked())
+    ui.cmbMaxLevelKMsg_1->setEnabled(true);
+  else
+    ui.cmbMaxLevelKMsg_1->setEnabled(false);
+  emit changed(true);
+}
+
+void kcmsystemd::slotFwdToConsoleChanged()
+{
+  if ( ui.chkForwardToConsole_1->isChecked()) {
+    ui.leTTYPath_1->setEnabled(true);
+    ui.cmbMaxLevelConsole_1->setEnabled(true);
+  } else {
+    ui.leTTYPath_1->setEnabled(false);
+    ui.cmbMaxLevelConsole_1->setEnabled(false);
+  }
+  emit changed(true);
+}
+
+void kcmsystemd::slotFwdToWallChanged()
+{
+  if ( ui.chkForwardToWall_1->isChecked())
+    ui.cmbMaxLevelWall_1->setEnabled(true);
+  else
+    ui.cmbMaxLevelWall_1->setEnabled(false);
   emit changed(true);
 }
 
 void kcmsystemd::slotKdeConfig()
 {
   // Set a QString containing the kde prefix
-  kdePrefix = QString::fromLatin1(kdeConfig->readAllStandardOutput()).trimmed();
+  kdePrefix = QString::fromAscii(kdeConfig->readAllStandardOutput()).trimmed();
 }
 
-void kcmsystemd::slotChkShowUnits(int state)
+void kcmsystemd::slotKillUserProcessesChanged()
 {
-  if (state == -1 ||
-      QObject::sender()->objectName() == "chkInactiveUnits" ||
-      QObject::sender()->objectName() == "chkUnloadedUnits")
-  {
-    // System units
-    if (ui.chkInactiveUnits->isChecked())
-    {
-      ui.chkUnloadedUnits->setEnabled(true);
-      if (ui.chkUnloadedUnits->isChecked())
-        systemUnitFilterModel->addFilterRegExp(activeState, "");
-      else
-        systemUnitFilterModel->addFilterRegExp(activeState, "active");
-    }
-    else
-    {
-      ui.chkUnloadedUnits->setEnabled(false);
-      systemUnitFilterModel->addFilterRegExp(activeState, "^(active)");
-    }
-    systemUnitFilterModel->invalidate();
-    ui.tblUnits->sortByColumn(ui.tblUnits->horizontalHeader()->sortIndicatorSection(),
-                              ui.tblUnits->horizontalHeader()->sortIndicatorOrder());
+  if ( ui.chkKillUserProcesses_2->isChecked()) {
+    ui.leKillOnlyUsers_2->setEnabled(true);
+    ui.leKillExcludeUsers_2->setEnabled(true);
+  } else {
+    ui.leKillOnlyUsers_2->setEnabled(false);
+    ui.leKillExcludeUsers_2->setEnabled(false);
   }
-  if (state == -1 ||
-      QObject::sender()->objectName() == "chkInactiveUserUnits" ||
-      QObject::sender()->objectName() == "chkUnloadedUserUnits")
-  {
-    // User units
-    if (ui.chkInactiveUserUnits->isChecked())
+  emit changed(true);
+}
+
+void kcmsystemd::slotCoreStorageChanged(int index)
+{
+  QList<QWidget *> lst = ui.tabCoredump->findChildren<QWidget *>(QRegExp("^grp|^chk|^lbl|^spn"));
+  
+  if (index == 0)
+  {   
+    foreach (QWidget *wdgt, lst)
     {
-      ui.chkUnloadedUserUnits->setEnabled(true);
-      if (ui.chkUnloadedUserUnits->isChecked())
-        userUnitFilterModel->addFilterRegExp(activeState, "");
-      else
-        userUnitFilterModel->addFilterRegExp(activeState, "active");
-    }
-    else
-    {
-      ui.chkUnloadedUserUnits->setEnabled(false);
-      userUnitFilterModel->addFilterRegExp(activeState, "^(active)");
-    }
-    userUnitFilterModel->invalidate();
-    ui.tblUserUnits->sortByColumn(ui.tblUserUnits->horizontalHeader()->sortIndicatorSection(),
-                                  ui.tblUserUnits->horizontalHeader()->sortIndicatorOrder());
+      if (wdgt && wdgt->objectName().contains(QRegExp("^grp|ProcessSizeMax_3|Compress_3")))
+        wdgt->setEnabled(false);
+    } 
   }
+  else
+  {
+    foreach (QWidget *wdgt, lst)
+    {
+      if (wdgt && wdgt->objectName().contains(QRegExp("^grp|ProcessSizeMax_3|Compress_3")))
+        wdgt->setEnabled(true);
+    }     
+  }
+
+  emit changed(true);
+}
+
+void kcmsystemd::slotOpenResourceLimits()
+{
+  QPointer<ResLimitsDialog> resDialog = new ResLimitsDialog(this,
+                                                            confOption::resLimitsMap);
+  
+  if (resDialog->exec() == QDialog::Accepted)
+  {
+    confOption::setResLimitsMap(resDialog->getResLimits());
+    
+    for(QVariantMap::const_iterator iter = confOption::resLimitsMap.begin(); iter != confOption::resLimitsMap.end(); ++iter)
+      confOptList[confOptList.indexOf(confOption(iter.key()))].setValue(iter.value());
+  }
+
+  if (resDialog->getChanged())
+    emit changed(true);  
+  
+  delete resDialog;
+}
+
+void kcmsystemd::slotOpenEnviron()
+{
+  QPointer<EnvironDialog> environDialog = new EnvironDialog(this,
+                                                            confOptList.at(confOptList.indexOf(confOption("DefaultEnvironment_0"))).getValue().toString());
+  if (environDialog->exec() == QDialog::Accepted)
+  {
+    confOptList[confOptList.indexOf(confOption("DefaultEnvironment_0"))].setValue(environDialog->getEnviron());
+  }
+    
+  if (environDialog->getChanged())
+    emit changed(true);
+  
+  delete environDialog;
+}
+
+void kcmsystemd::slotOpenAdvanced()
+{
+  QVariantMap args;
+  args["systemdVersion"] = systemdVersion;
+  args["JoinControllers"] = confOptList.at(confOptList.indexOf(confOption("JoinControllers_0"))).getValue();
+  if (systemdVersion < 208)
+    args["DefaultControllers"] = confOptList.at(confOptList.indexOf(confOption("DefaultControllers_0"))).getValue();
+  args["TimerSlackNSec"] = confOptList.at(confOptList.indexOf(confOption("TimerSlackNSec_0"))).getValue();
+  args["RuntimeWatchdogSec"] = confOptList.at(confOptList.indexOf(confOption("RuntimeWatchdogSec_0"))).getValue();
+  args["ShutdownWatchdogSec"] = confOptList.at(confOptList.indexOf(confOption("ShutdownWatchdogSec_0"))).getValue();
+  args["CPUAffinity"] = confOptList.at(confOptList.indexOf(confOption("CPUAffinity_0"))).getValue();
+  args["CPUAffinityActive"] = confOptList.at(confOptList.indexOf(confOption("CPUAffinity_0"))).active;
+  if (systemdVersion >= 209)
+  {
+    args["SystemCallArchitectures"] = confOptList.at(confOptList.indexOf(confOption("SystemCallArchitectures_0"))).getValue();
+    args["SystemCallArchitecturesActive"] = confOptList.at(confOptList.indexOf(confOption("SystemCallArchitectures_0"))).active;
+  }
+  args["CapabilityBoundingSet"] = confOptList.at(confOptList.indexOf(confOption("CapabilityBoundingSet_0"))).getValue();
+  args["CapabilityBoundingSetActive"] = confOptList.at(confOptList.indexOf(confOption("CapabilityBoundingSet_0"))).active;
+  
+  QPointer<AdvancedDialog> advancedDialog = new AdvancedDialog(this, args);
+ 
+  if (advancedDialog->exec() == QDialog::Accepted)
+  {
+    confOptList[confOptList.indexOf(confOption("JoinControllers_0"))].setValue(advancedDialog->getJoinControllers());
+    if (systemdVersion < 208)
+      confOptList[confOptList.indexOf(confOption("DefaultControllers_0"))].setValue(advancedDialog->getDefaultControllers());
+    confOptList[confOptList.indexOf(confOption("TimerSlackNSec_0"))].setValue(advancedDialog->getTimerSlack());
+    confOptList[confOptList.indexOf(confOption("RuntimeWatchdogSec_0"))].setValue(advancedDialog->getRuntimeWatchdog());
+    confOptList[confOptList.indexOf(confOption("ShutdownWatchdogSec_0"))].setValue(advancedDialog->getShutdownWatchdog());
+    confOptList[confOptList.indexOf(confOption("CPUAffinity_0"))].setValue(advancedDialog->getCPUAffinity());
+    confOptList[confOptList.indexOf(confOption("CPUAffinity_0"))].active = advancedDialog->getCPUAffActive();
+    if (systemdVersion >= 209)
+    {
+      confOptList[confOptList.indexOf(confOption("SystemCallArchitectures_0"))].setValue(advancedDialog->getSystemCallArchitectures());
+      confOptList[confOptList.indexOf(confOption("SystemCallArchitectures_0"))].active = advancedDialog->getSysCallActive();
+    }
+    confOptList[confOptList.indexOf(confOption("CapabilityBoundingSet_0"))].setValue(advancedDialog->getCapabilities());
+    confOptList[confOptList.indexOf(confOption("CapabilityBoundingSet_0"))].active = advancedDialog->getCapActive();
+        
+    if (advancedDialog->getChanged())
+      emit changed(true);
+  }
+
+  delete advancedDialog;
+}
+
+void kcmsystemd::slotTblRowChanged(const QModelIndex &current, __attribute__((unused)) const QModelIndex &previous)
+{
+  // Find the selected unit
+  selectedUnit = ui.tblServices->model()->index(current.row(),3).data().toString();
+
+  // Find the selected row
+  QModelIndex inProxyModelAct = proxyModelUnitId->mapToSource(const_cast<QModelIndex &> (current));
+  selectedRow = proxyModelAct->mapToSource(inProxyModelAct).row();
+  
+  updateUnitProps(selectedUnit);
+}
+
+void kcmsystemd::slotBtnStartUnit()
+{
+  QList<QVariant> args;
+  args.append(selectedUnit);
+  args.append("replace");
+  authServiceAction("org.freedesktop.systemd1", "/org/freedesktop/systemd1", "org.freedesktop.systemd1.Manager", "StartUnit", args);
+}
+
+void kcmsystemd::slotBtnStopUnit()
+{
+  QList<QVariant> args;
+  args.append("replace");
+  authServiceAction("org.freedesktop.systemd1", unitpaths[selectedUnit].toString(), "org.freedesktop.systemd1.Unit", "Stop", args);
+}
+
+void kcmsystemd::slotBtnRestartUnit()
+{
+  QList<QVariant> args;
+  args.append("replace");
+  authServiceAction("org.freedesktop.systemd1", unitpaths[selectedUnit].toString(), "org.freedesktop.systemd1.Unit", "Restart", args);
+}
+
+void kcmsystemd::slotBtnReloadUnit()
+{
+  QList<QVariant> args;
+  args.append("replace");
+  authServiceAction("org.freedesktop.systemd1", unitpaths[selectedUnit].toString(), "org.freedesktop.systemd1.Unit", "Reload", args);
+}
+
+void kcmsystemd::slotChkShowUnits()
+{
+  if (ui.chkInactiveUnits->isChecked()) {
+    ui.chkShowUnloadedUnits->setEnabled(true);
+    if (ui.chkShowUnloadedUnits->isChecked())
+      proxyModelAct->setFilterRegExp("");
+    else
+      proxyModelAct->setFilterRegExp("active");
+  } else {
+    ui.chkShowUnloadedUnits->setEnabled(false);
+    proxyModelAct->setFilterRegExp(QRegExp("^(active)"));
+  }    
+  proxyModelAct->setFilterKeyColumn(1);
+  ui.tblServices->sortByColumn(ui.tblServices->horizontalHeader()->sortIndicatorSection(), ui.tblServices->horizontalHeader()->sortIndicatorOrder());
   updateUnitCount();
 }
 
-void kcmsystemd::slotCmbUnitTypes(int index)
+void kcmsystemd::slotCmbUnitTypes()
 {
   // Filter unit list for a selected unit type
-
-  if (QObject::sender()->objectName() == "cmbUnitTypes")
+  switch (ui.cmbUnitTypes->currentIndex())
   {
-    systemUnitFilterModel->addFilterRegExp(unitType, "(" + unitTypeSufx.at(index) + ")$");
-    systemUnitFilterModel->invalidate();
-    ui.tblUnits->sortByColumn(ui.tblUnits->horizontalHeader()->sortIndicatorSection(),
-                              ui.tblUnits->horizontalHeader()->sortIndicatorOrder());
+  case 0:
+    filterUnitType = "";
+    break;
+  case 1:
+    filterUnitType = ".target";
+    break;
+  case 2:
+    filterUnitType = ".service";
+    break;
+  case 3:
+    filterUnitType = ".device";
+    break;
+  case 4:
+    filterUnitType = ".mount";
+    break;
+  case 5:
+    filterUnitType = ".automount";
+    break;
+  case 6:
+    filterUnitType = ".swap";
+    break;
+  case 7:
+    filterUnitType = ".socket";
+    break;
+  case 8:
+    filterUnitType = ".path";
+    break;
+  case 9:
+    filterUnitType = ".timer";
+    break;
+  case 10:
+    filterUnitType = ".snapshot";
+    break;
+  case 11:
+    filterUnitType = ".slice";
+    break;
+  case 12:
+    filterUnitType = ".scope";
   }
-  else if (QObject::sender()->objectName() == "cmbUserUnitTypes")
-  {
-    userUnitFilterModel->addFilterRegExp(unitType, "(" + unitTypeSufx.at(index) + ")$");
-    userUnitFilterModel->invalidate();
-    ui.tblUserUnits->sortByColumn(ui.tblUserUnits->horizontalHeader()->sortIndicatorSection(),
-                                  ui.tblUserUnits->horizontalHeader()->sortIndicatorOrder());
-  }
+  proxyModelUnitId->setFilterRegExp(QRegExp("(?=.*" + searchTerm + ")(?=.*" + filterUnitType + "$)", 
+					Qt::CaseInsensitive,
+                                        QRegExp::RegExp));
+  proxyModelUnitId->setFilterKeyColumn(3);
+  ui.tblServices->sortByColumn(ui.tblServices->horizontalHeader()->sortIndicatorSection(), ui.tblServices->horizontalHeader()->sortIndicatorOrder());
   updateUnitCount();
 }
 
-void kcmsystemd::slotRefreshUnitsList(bool initial, dbusBus bus)
+void kcmsystemd::slotRefreshUnitsList()
 {
-  // Updates the unit lists
-
-  if (bus == sys)
+  // qDebug() << "Refreshing units...";
+  // clear lists
+  unitslist.clear();
+  unitfileslist.clear();
+  unitpaths.clear();
+  noActUnits = 0;
+  
+  // get an updated list of units via dbus
+  QDBusMessage dbusreply;
+  QDBusConnection systembus = QDBusConnection::systemBus();
+  QDBusInterface *iface = new QDBusInterface ("org.freedesktop.systemd1",
+					      "/org/freedesktop/systemd1",
+					      "org.freedesktop.systemd1.Manager",
+					      systembus,
+					      this);
+  if (iface->isValid())
+    dbusreply = iface->call(QDBus::AutoDetect, "ListUnits");
+  delete iface;
+  const QDBusArgument myArg = dbusreply.arguments().at(0).value<QDBusArgument>();
+  if (myArg.currentType() == QDBusArgument::ArrayType)
   {
-    qDebug() << "Refreshing system units...";
-
-    // get an updated list of system units via dbus
-    unitslist.clear();
-    unitslist = getUnitsFromDbus(sys);
-    noActSystemUnits = 0;
-    foreach (SystemdUnit unit, unitslist)
+    myArg.beginArray();
+    while (!myArg.atEnd())
     {
-      if (unit.active_state == "active")
-        noActSystemUnits++;
+      SystemdUnit unit;
+      myArg >> unit;
+      unitslist.append(unit);
+      unitpaths[unit.id] = unit.unit_path.path();
     }
-    if (!initial)
-    {
-      systemUnitModel->dataChanged(systemUnitModel->index(0, 0), systemUnitModel->index(systemUnitModel->rowCount(), 3));
-      systemUnitFilterModel->invalidate();
-      updateUnitCount();
-      slotRefreshTimerList();
-    }
+    myArg.endArray();
   }
-
-  else if (enableUserUnits && bus == user)
+  
+  // Find unit files
+  iface = new QDBusInterface ("org.freedesktop.systemd1",
+			      "/org/freedesktop/systemd1",
+			      "org.freedesktop.systemd1.Manager",
+			      systembus,
+			      this);
+  if (iface->isValid())
   {
-    qDebug() << "Refreshing user units...";
-
-    // get an updated list of user units via dbus
-    userUnitslist.clear();
-    userUnitslist = getUnitsFromDbus(user);
-    noActUserUnits = 0;
-    foreach (SystemdUnit unit, userUnitslist)
-    {
-      if (unit.active_state == "active")
-        noActUserUnits++;
-    }
-    if (!initial)
-    {
-      userUnitModel->dataChanged(userUnitModel->index(0, 0), userUnitModel->index(userUnitModel->rowCount(), 3));
-      userUnitFilterModel->invalidate();
-      updateUnitCount();
-      slotRefreshTimerList();
-    }
-  }
-}
-
-void kcmsystemd::slotRefreshSessionList()
-{
-  // Updates the session list
-  qDebug() << "Refreshing session list...";
-
-  // clear list
-  sessionlist.clear();
-
-  // get an updated list of sessions via dbus
-  QDBusMessage dbusreply = callDbusMethod("ListSessions", logdMgr);
-
-  // extract the list of sessions from the reply
-  const QDBusArgument arg = dbusreply.arguments().at(0).value<QDBusArgument>();
-  if (arg.currentType() == QDBusArgument::ArrayType)
-  {
+    dbusreply = iface->call("ListUnitFiles");
+    const QDBusArgument arg = dbusreply.arguments().at(0).value<QDBusArgument>();
     arg.beginArray();
     while (!arg.atEnd())
     {
-      SystemdSession session;
-      arg >> session;
-      sessionlist.append(session);
+      unitfile u;
+      arg.beginStructure();
+      arg >> u.name >> u.status;
+      arg.endStructure();
+      unitfileslist.append(u);
     }
     arg.endArray();
   }
+  delete iface;
 
-  // Iterate through the new list and compare to model
-  for (int i = 0;  i < sessionlist.size(); ++i)
-  {
-    // This is needed to get the "State" property
-
-    QList<QStandardItem *> items = sessionModel->findItems(sessionlist.at(i).session_id, Qt::MatchExactly, 0);
-
-    if (items.isEmpty())
+  for (int i = 0;  i < unitfileslist.size(); ++i)
+  { 
+    if (!unitpaths.contains(unitfileslist.at(i).name.section('/',-1)))
     {
-      // New session discovered so add it to the model
-      QList<QStandardItem *> row;
-      row <<
-      new QStandardItem(sessionlist.at(i).session_id) <<
-      new QStandardItem(sessionlist.at(i).session_path.path()) <<
-      new QStandardItem(getDbusProperty("State", logdSession, sessionlist.at(i).session_path).toString()) <<
-      new QStandardItem(QString::number(sessionlist.at(i).user_id)) <<
-      new QStandardItem(sessionlist.at(i).user_name) <<
-      new QStandardItem(sessionlist.at(i).seat_id);
-      sessionModel->appendRow(row);
-    } else {
-      sessionModel->item(items.at(0)->row(), 2)->setData(getDbusProperty("State", logdSession, sessionlist.at(i).session_path).toString(), Qt::DisplayRole);
+      QFile unitfile(unitfileslist.at(i).name);
+      if (unitfile.symLinkTarget().isEmpty())
+      {
+	SystemdUnit unit;
+	unit.id = unitfileslist.at(i).name.section('/',-1);
+	unit.load_state = "unloaded";
+	unit.active_state = "-";
+	unit.sub_state = "-";
+	unitslist.append(unit);
+      }
     }
   }
 
-  // Check to see if any sessions were removed
-  if (sessionModel->rowCount() != sessionlist.size())
+  // Iterate through the new list and compare to model
+  for (int i = 0;  i < unitslist.size(); ++i)
+  {
+    QList<QStandardItem *> items = unitsModel->findItems(unitslist.at(i).id, Qt::MatchExactly, 3);
+    if (items.isEmpty())
+    {
+      // New unit discovered so add it to the model
+      // qDebug() << "Found new unit: " << unitslist.at(i).id;
+      QList<QStandardItem *> row;
+      row <<
+      new QStandardItem(unitslist.at(i).load_state) <<
+      new QStandardItem(unitslist.at(i).active_state) <<
+      new QStandardItem(unitslist.at(i).sub_state) <<
+      new QStandardItem(unitslist.at(i).id);
+      unitsModel->appendRow(row);
+      ui.tblServices->sortByColumn(ui.tblServices->horizontalHeader()->sortIndicatorSection(), ui.tblServices->horizontalHeader()->sortIndicatorOrder());
+    } else {
+      // Update stats for previously known units
+      unitsModel->item(items.at(0)->row(), 0)->setData(unitslist.at(i).load_state, Qt::DisplayRole);
+      unitsModel->item(items.at(0)->row(), 1)->setData(unitslist.at(i).active_state, Qt::DisplayRole);
+      unitsModel->item(items.at(0)->row(), 2)->setData(unitslist.at(i).sub_state, Qt::DisplayRole);
+    }
+    if (unitslist.at(i).active_state == "active")
+      noActUnits++;
+  }
+  
+  // Check to see if any units were removed
+  if (unitsModel->rowCount() != unitslist.size())
   {
     QList<QPersistentModelIndex> indexes;
-    // Loop through model and compare to retrieved sessionlist
-    for (int row = 0; row < sessionModel->rowCount(); ++row)
+    // Loop through model and compare to retrieved unitslist
+    for (int row = 0; row < unitsModel->rowCount(); ++row)
     {
-      SystemdSession session;
-      session.session_id = sessionModel->index(row,0).data().toString();
-      if (!sessionlist.contains(session))
+      SystemdUnit unit;
+      unit.id = unitsModel->index(row,3).data().toString();    
+      if (!unitslist.contains(unit))
       {
-        // Add removed units to list for deletion
-        // qDebug() << "Unit removed: " << systemUnitModel->index(row,3).data().toString();
-        indexes << sessionModel->index(row,0);
+	// Add removed units to list for deletion
+        // qDebug() << "Unit removed: " << unitsModel->index(row,3).data().toString();
+	indexes << unitsModel->index(row,3);
       }
     }
     // Delete the identified units from model
     foreach (QPersistentModelIndex i, indexes)
-      sessionModel->removeRow(i.row());
+      unitsModel->removeRow(i.row());
   }
-
+  
   // Update the text color in model
-  QColor newcolor;
-  for (int row = 0; row < sessionModel->rowCount(); ++row)
+  for (int row = 0; row < unitsModel->rowCount(); ++row)
   {
-    QBrush newcolor;
-    const KColorScheme scheme(QPalette::Normal);
-    if (sessionModel->data(sessionModel->index(row,2), Qt::DisplayRole) == "active")
-      newcolor = scheme.foreground(KColorScheme::PositiveText);
-    else if (sessionModel->data(sessionModel->index(row,2), Qt::DisplayRole) == "closing")
-      newcolor = scheme.foreground(KColorScheme::InactiveText);
-    else
-      newcolor = scheme.foreground(KColorScheme::NormalText);
-
-    for (int col = 0; col < sessionModel->columnCount(); ++col)
-      sessionModel->setData(sessionModel->index(row,col), QVariant(newcolor), Qt::ForegroundRole);
-  }
-}
-
-void kcmsystemd::slotRefreshTimerList()
-{
-  // Updates the timer list
-  // qDebug() << "Refreshing timer list...";
-
-  timerModel->removeRows(0, timerModel->rowCount());
-
-  // Iterate through system unitlist and add timers to the model
-  foreach (SystemdUnit unit, unitslist)
-  {
-    if (unit.id.endsWith(".timer") && unit.load_state != "unloaded")
-      timerModel->appendRow(buildTimerListRow(unit, unitslist, sys));
-  }
-
-  // Iterate through user unitlist and add timers to the model
-  foreach (SystemdUnit unit, userUnitslist)
-  {
-    if (unit.id.endsWith(".timer") && unit.load_state != "unloaded")
-      timerModel->appendRow(buildTimerListRow(unit, userUnitslist, user));
-  }
-
-  // Update the left and passed columns
-  slotUpdateTimers();
-
-  ui.tblTimers->resizeColumnsToContents();
-  ui.tblTimers->sortByColumn(ui.tblTimers->horizontalHeader()->sortIndicatorSection(),
-                             ui.tblTimers->horizontalHeader()->sortIndicatorOrder());
-}
-
-QList<QStandardItem *> kcmsystemd::buildTimerListRow(const SystemdUnit &unit, const QList<SystemdUnit> &list, dbusBus bus)
-{
-  // Builds a row for the timers list
-
-  QDBusObjectPath path = unit.unit_path;
-  QString unitToActivate = getDbusProperty("Unit", sysdTimer, path, bus).toString();
-
-  QDateTime time;
-  QIcon icon;
-  if (bus == sys)
-    icon = QIcon::fromTheme("applications-system");
-  else
-    icon = QIcon::fromTheme("user-identity");
-
-  // Add the next elapsation point
-  qlonglong nextElapseMonotonicMsec = getDbusProperty("NextElapseUSecMonotonic", sysdTimer, path, bus).toULongLong() / 1000;
-  qlonglong nextElapseRealtimeMsec = getDbusProperty("NextElapseUSecRealtime", sysdTimer, path, bus).toULongLong() / 1000;
-  qlonglong lastTriggerMSec = getDbusProperty("LastTriggerUSec", sysdTimer, path, bus).toULongLong() / 1000;
-
-  if (nextElapseMonotonicMsec == 0)
-  {
-    // Timer is calendar-based
-    time.setMSecsSinceEpoch(nextElapseRealtimeMsec);
-  }
-  else
-  {
-    // Timer is monotonic
-    time = QDateTime().currentDateTime();
-    time = time.addMSecs(nextElapseMonotonicMsec);
-
-    // Get the monotonic system clock
-    struct timespec ts;
-    if (clock_gettime( CLOCK_MONOTONIC, &ts ) != 0)
-      qDebug() << "Failed to get the monotonic system clock!";
-
-    // Convert the monotonic system clock to microseconds
-    qlonglong now_mono_usec = ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
-
-    // And substract it
-    time = time.addMSecs(-now_mono_usec/1000);
-  }
-
-  QString next = time.toString("yyyy.MM.dd hh:mm:ss");
-
-  QString last;
-
-  // use unit object to get last time for activated service
-  int index = list.indexOf(SystemdUnit(unitToActivate));
-  if (index != -1)
-  {
-    qlonglong inactivateExitTimestampMsec =
-        getDbusProperty("InactiveExitTimestamp", sysdUnit, list.at(index).unit_path, bus).toULongLong() / 1000;
-
-    if (inactivateExitTimestampMsec == 0)
-    {
-      // The unit has not run in this boot
-      // Use LastTrigger to see if the timer is persistent
-      if (lastTriggerMSec == 0)
-        last = "n/a";
-      else
-      {
-        time.setMSecsSinceEpoch(lastTriggerMSec);
-        last = time.toString("yyyy.MM.dd hh:mm:ss");
-      }
-    }
-    else
-    {
-      QDateTime time;
-      time.setMSecsSinceEpoch(inactivateExitTimestampMsec);
-      last = time.toString("yyyy.MM.dd hh:mm:ss");
+    if (unitsModel->data(unitsModel->index(row,1), Qt::DisplayRole) == "inactive") {
+      for (int col = 0; col < 4; ++col)
+	unitsModel->setData(unitsModel->index(row,col), QVariant(QColor(Qt::red)), Qt::ForegroundRole);
+    } else if (unitsModel->data(unitsModel->index(row,1), Qt::DisplayRole) == "active") {
+      for (int col = 0; col < 4; ++col)
+	unitsModel->setData(unitsModel->index(row,col), QVariant(QColor(Qt::darkGreen)), Qt::ForegroundRole);
+    } else if (unitsModel->data(unitsModel->index(row,1), Qt::DisplayRole) == "failed") {
+      for (int col = 0; col < 4; ++col)
+	unitsModel->setData(unitsModel->index(row,col), QVariant(QColor(Qt::darkRed)), Qt::ForegroundRole); 
+    } else if (unitsModel->data(unitsModel->index(row,1), Qt::DisplayRole) == "-") {
+      for (int col = 0; col < 4; ++col)
+	unitsModel->setData(unitsModel->index(row,col), QVariant(QColor(Qt::darkGray)), Qt::ForegroundRole);
     }
   }
+  
+  // Update unit properties for the selected unit
+  if (!selectedUnit.isEmpty())
+    updateUnitProps(selectedUnit);
+  slotChkShowUnits();
+}
 
-  // Set icon for id column
-  QStandardItem *id = new QStandardItem(unit.id);
-  id->setData(icon, Qt::DecorationRole);
+void kcmsystemd::updateUnitProps(QString unit)
+{
+  // Function to update the selected units properties
+  
+  // Create a DBus interface
+  QDBusConnection systembus = QDBusConnection::systemBus();
+  QDBusInterface *iface = new QDBusInterface (
+	  "org.freedesktop.systemd1",
+	  unitpaths[unit].toString(),
+	  "org.freedesktop.systemd1.Unit",
+	  systembus,
+	  this);
+  
+  // Use the DBus interface to get unit properties and update labels
+  if (iface->isValid())
+  {
+    ui.lblId->setText(iface->property("Id").toString());
+    ui.lblDesc->setText(iface->property("Description").toString());
+    ui.lblFragmentPath->setText(iface->property("FragmentPath").toString());
+    if (iface->property("CanStart").toBool() && iface->property("ActiveState").toString() != "active")
+      ui.btnStartUnit->setEnabled(true);
+    else
+      ui.btnStartUnit->setEnabled(false);
+    if (iface->property("CanStop").toBool() && iface->property("ActiveState").toString() != "inactive"
+					    && iface->property("ActiveState").toString() != "failed")
+      ui.btnStopUnit->setEnabled(true);
+    else
+      ui.btnStopUnit->setEnabled(false);
+    if (iface->property("CanStart").toBool() && iface->property("ActiveState").toString() != "inactive"
+					     && iface->property("ActiveState").toString() != "failed")
+      ui.btnRestartUnit->setEnabled(true);
+    else
+      ui.btnRestartUnit->setEnabled(false);
+    if (iface->property("CanReload").toBool() && iface->property("ActiveState").toString() != "inactive"
+					      && iface->property("ActiveState").toString() != "failed")
+      ui.btnReloadUnit->setEnabled(true);
+    else
+      ui.btnReloadUnit->setEnabled(false);
+    if (iface->property("ActiveEnterTimestamp").toULongLong() == 0)
+      ui.lblTimeActivated->setText("n/a");
+    else
+    {
+      QDateTime timeActivated;
+      timeActivated.setMSecsSinceEpoch(iface->property("ActiveEnterTimestamp").toULongLong()/1000);
+      ui.lblTimeActivated->setText(timeActivated.toString());
+    }
+    if (iface->property("InactiveEnterTimestamp").toULongLong() == 0)
+      ui.lblTimeDeactivated->setText("n/a");
+    else
+    {
+      QDateTime timeDeactivated;
+      timeDeactivated.setMSecsSinceEpoch(iface->property("InactiveEnterTimestamp").toULongLong()/1000);
+      ui.lblTimeDeactivated->setText(timeDeactivated.toString());
+    }
+    ui.lblUnitFileState->setText(iface->property("UnitFileState").toString());	  
+  } else {
+    iface = new QDBusInterface (
+	  "org.freedesktop.systemd1",
+	  "/org/freedesktop/systemd1",
+	  "org.freedesktop.systemd1.Manager",
+	  systembus,
+	  this);
+    QList<QVariant> args;
+    args << selectedUnit;
 
-  // Build a row from QStandardItems
-  QList<QStandardItem *> row;
-  row << id <<
-         new QStandardItem(next) <<
-         new QStandardItem("") <<
-         new QStandardItem(last) <<
-         new QStandardItem("") <<
-         new QStandardItem(unitToActivate);
-
-  return row;
+    ui.lblId->setText(selectedUnit);
+    ui.lblDesc->setText("");
+    unitfile a;
+    a.name = selectedUnit;
+    if (!a.name.isEmpty())
+    {
+      ui.lblFragmentPath->setText(unitfileslist.at(unitfileslist.indexOf(a)).name);
+      ui.lblUnitFileState->setText(iface->callWithArgumentList(QDBus::AutoDetect, "GetUnitFileState", args).arguments().at(0).toString());
+      ui.btnStartUnit->setEnabled(true);
+    } else {
+      ui.lblFragmentPath->setText("");
+      ui.lblUnitFileState->setText("");
+      ui.btnStartUnit->setEnabled(false);
+    }
+    ui.lblTimeActivated->setText("");
+    ui.lblTimeDeactivated->setText("");
+    ui.btnStopUnit->setEnabled(false);
+    ui.btnRestartUnit->setEnabled(false);
+    ui.btnReloadUnit->setEnabled(false);
+  }
+  delete iface;
 }
 
 void kcmsystemd::updateUnitCount()
 {
-  ui.lblUnitCount->setText(i18n("Total: %1 units, %2 active, %3 displayed",
-                                QString::number(systemUnitModel->rowCount()),
-                                QString::number(noActSystemUnits),
-                                QString::number(systemUnitFilterModel->rowCount())));
-  ui.lblUserUnitCount->setText(i18n("Total: %1 units, %2 active, %3 displayed",
-                                    QString::number(userUnitModel->rowCount()),
-                                    QString::number(noActUserUnits),
-                                    QString::number(userUnitFilterModel->rowCount())));
+  ui.lblStatus->setText("Total: " + QString::number(unitsModel->rowCount()) + " units, " + 
+			QString::number(noActUnits) + " active, " + 
+			QString::number(proxyModelUnitId->rowCount()) + " displayed");
 }
 
 void kcmsystemd::authServiceAction(QString service, QString path, QString interface, QString method, QList<QVariant> args)
 {
-  // Function to call the helper to authenticate a call to systemd over the system DBus
+  // Function to call the helper to authenticate a call to systemd over the system bus
 
   // Declare a QVariantMap with arguments for the helper
   QVariantMap helperArgs;
@@ -1563,383 +1416,270 @@ void kcmsystemd::authServiceAction(QString service, QString path, QString interf
     
   // Call the helper
   Action serviceAction("org.kde.kcontrol.kcmsystemd.dbusaction");
-  serviceAction.setHelperId("org.kde.kcontrol.kcmsystemd");
   serviceAction.setArguments(helperArgs);
-
-  ExecuteJob* job = serviceAction.execute();
-  job->exec();
-
-  if (!job->exec())
-    displayMsgWidget(KMessageWidget::Error,
-                     i18n("Unable to authenticate/execute the action: %1", job->error()));
-  else
+  serviceAction.setHelperID("org.kde.kcontrol.kcmsystemd");
+  ActionReply reply = serviceAction.execute();
+  
+  // Respond to reply of the helper
+  if(reply.failed())
   {
-    qDebug() << "DBus action successful.";
-    // KMessageBox::information(this, i18n("DBus action successful."));
+    // Writing the configuration files failed
+    if (reply.type() == ActionReply::KAuthError)
+    {
+      // Authorization error
+      KMessageBox::error(this, i18n("Unable to authenticate/execute the action: code %1\n%2",
+				    reply.errorCode(), reply.errorDescription()));
+    }
+    else 
+    {
+      // Other error
+      KMessageBox::error(this, i18n("Unable to perform the action!"));
+    }
   }
 }
 
-void kcmsystemd::slotUnitContextMenu(const QPoint &pos)
+void kcmsystemd::slotDisplayMenu(const QPoint &pos)
 {
-  // Slot for creating the right-click menu in unitlists
-
-  // Setup objects which can be used for both system and user units
-  QList<SystemdUnit> *list;
-  QTableView *tblView;
-  dbusBus bus;
-  bool requiresAuth = true;
-  if (ui.tabWidget->currentIndex() == 0)
-  {
-    list = &unitslist;
-    tblView = ui.tblUnits;
-    bus = sys;
-  }
-  else if (ui.tabWidget->currentIndex() == 1)
-  {
-    list = &userUnitslist;
-    tblView = ui.tblUserUnits;
-    bus = user;
-    requiresAuth = false;
-  }
-
-  // Find name and object path of unit
-  QString unit = tblView->model()->index(tblView->indexAt(pos).row(), 3).data().toString();
-  QDBusObjectPath pathUnit = list->at(list->indexOf(SystemdUnit(unit))).unit_path;
-
-  // Create rightclick menu items
+  // Slot for creating the right-click menu over the unit list
   QMenu menu(this);
-  QAction *start = menu.addAction(i18n("&Start unit"));
-  QAction *stop = menu.addAction(i18n("S&top unit"));
-  QAction *restart = menu.addAction(i18n("&Restart unit"));
-  QAction *reload = menu.addAction(i18n("Re&load unit"));
+  QAction *edit = menu.addAction("&Edit unit file");
+  QAction *isolate = menu.addAction("&Isolate unit");
   menu.addSeparator();
-  QAction *edit = menu.addAction(i18n("&Edit unit file"));
-  QAction *isolate = menu.addAction(i18n("&Isolate unit"));
+  QAction *enable = menu.addAction("En&able unit");
+  QAction *disable = menu.addAction("&Disable unit");
   menu.addSeparator();
-  QAction *enable = menu.addAction(i18n("En&able unit"));
-  QAction *disable = menu.addAction(i18n("&Disable unit"));
+  QAction *mask = menu.addAction("&Mask unit");
+  QAction *unmask = menu.addAction("&Unmask unit");
   menu.addSeparator();
-  QAction *mask = menu.addAction(i18n("&Mask unit"));
-  QAction *unmask = menu.addAction(i18n("&Unmask unit"));
-  menu.addSeparator();
-  QAction *reloaddaemon = menu.addAction(i18n("Rel&oad all unit files"));
-  QAction *reexecdaemon = menu.addAction(i18n("Ree&xecute systemd"));
+  QAction *reloaddaemon = menu.addAction("&Reload all unit files");
+  QAction *reexecdaemon = menu.addAction("&Reexecute systemd");
   
-  // Get UnitFileState (have to use Manager object for this)
+  QString unit = ui.tblServices->model()->index(ui.tblServices->indexAt(pos).row(),3).data().toString();
+  QString path = unitpaths[unit].toString();
+  
+  QDBusConnection systembus = QDBusConnection::systemBus();
+  QDBusInterface *iface = new QDBusInterface (
+	  "org.freedesktop.systemd1",
+	  "/org/freedesktop/systemd1",
+	  "org.freedesktop.systemd1.Manager",
+	  systembus,
+	  this);  
   QList<QVariant> args;
   args << unit;
-  QString UnitFileState = callDbusMethod("GetUnitFileState", sysdMgr, bus, args).arguments().at(0).toString();
-
-  // Check capabilities of unit
-  QString LoadState, ActiveState;
-  bool CanStart, CanStop, CanReload;
-  if (!pathUnit.path().isEmpty() && getDbusProperty("Test", sysdUnit, pathUnit, bus).toString() != "invalidIface")
-  {
-    // Unit has a Unit DBus object, fetch properties
-    isolate->setEnabled(getDbusProperty("CanIsolate", sysdUnit, pathUnit, bus).toBool());
-    LoadState = getDbusProperty("LoadState", sysdUnit, pathUnit, bus).toString();
-    ActiveState = getDbusProperty("ActiveState", sysdUnit, pathUnit, bus).toString();
-    CanStart = getDbusProperty("CanStart", sysdUnit, pathUnit, bus).toBool();
-    CanStop = getDbusProperty("CanStop", sysdUnit, pathUnit, bus).toBool();
-    CanReload = getDbusProperty("CanReload", sysdUnit, pathUnit, bus).toBool();
-  }
-  else
-  {
-    // No Unit DBus object, only enable Start
-    isolate->setEnabled(false);
-    CanStart = true;
-    CanStop = false;
-    CanReload = false;
-  }
-
-  // Enable/disable menu items
-  if (CanStart && ActiveState != "active")
-    start->setEnabled(true);
-  else
-    start->setEnabled(false);
-
-  if (CanStop &&
-      ActiveState != "inactive" &&
-      ActiveState != "failed")
-    stop->setEnabled(true);
-  else
-    stop->setEnabled(false);
-
-  if (CanStart &&
-      ActiveState != "inactive" &&
-      ActiveState != "failed" &&
-      !LoadState.isEmpty())
-    restart->setEnabled(true);
-  else
-    restart->setEnabled(false);
-
-  if (CanReload &&
-      ActiveState != "inactive" &&
-      ActiveState != "failed")
-    reload->setEnabled(true);
-  else
-    reload->setEnabled(false);
-
+  QString UnitFileState = iface->callWithArgumentList(QDBus::AutoDetect, "GetUnitFileState", args).arguments().at(0).toString();
+  
+  iface = new QDBusInterface (
+	  "org.freedesktop.systemd1",
+	  path,
+	  "org.freedesktop.systemd1.Unit",
+	  systembus,
+	  this);
+  isolate->setEnabled(iface->property("CanIsolate").toBool());
+  QString LoadState = iface->property("LoadState").toString();
+  delete iface;
+  
   if (UnitFileState == "disabled")
-    disable->setEnabled(false);
-  else if (UnitFileState == "enabled")
-    enable->setEnabled(false);
-  else
   {
+    disable->setEnabled(false);
+  } else if (UnitFileState == "enabled") {
+    enable->setEnabled(false);
+  } else {
     enable->setEnabled(false);    
     disable->setEnabled(false);
   }
 
   if (LoadState == "masked")
+  {
     mask->setEnabled(false);
-  else if (LoadState != "masked")
+  } else if (LoadState == "loaded" || LoadState == "error") {
     unmask->setEnabled(false);
+  }
   
   // Check if unit has a unit file, if not disable editing
   QString frpath;
-  int index = list->indexOf(SystemdUnit(unit));
+  unitfile afile;
+  afile.name = unit;
+  int index = unitfileslist.indexOf(afile);
   if (index != -1)
-    frpath = list->at(index).unit_file;
+    frpath = unitfileslist.at(index).name;
   if (frpath.isEmpty())
     edit->setEnabled(false);
-
-  QAction *a = menu.exec(tblView->viewport()->mapToGlobal(pos));
+  
+  QAction *a = menu.exec(ui.tblServices->viewport()->mapToGlobal(pos));
    
   if (a == edit)
   {
-    // Find the application associated with text files
-    KMimeTypeTrader* trader = KMimeTypeTrader::self();
-    const KService::Ptr service = trader->preferredService("text/plain");
-
-    // Open the unit file using the found application
-    QString app;
-    QStringList args;
-    if (frpath.startsWith(getenv("HOME")))
-    {
-      // Unit file is in $HOME, no authentication required
-      app = service->exec().section(' ', 0, 0);
-      args << frpath;
-    }
-    else
-    {
-      // Unit file is outside $HOME, use kdesu for authentication
-      app = "kdesu";
-      args << "-t" << "--" << service->exec().section(' ', 0, 0) << frpath;
-    }
-    QProcess editor (this);
-    bool r = editor.startDetached(app, args);
-    if (!r && app == "kdesu")
-      r = editor.startDetached(kdePrefix + "/lib/libexec/kdesu", args);
-    if (!r)
-      displayMsgWidget(KMessageWidget::Error,
-                       i18n("Failed to open unit file!"));
-    return;
+    QProcess kwrite (this);
+    kwrite.startDetached(kdePrefix + "/lib/kde4/libexec/kdesu", QStringList() << "-t" << "--" << "kwrite" << frpath);
   }
-
-  // Setup method and arguments for DBus call
-  QStringList unitsForCall = QStringList() << unit;
-  QString method;
-  QList<QVariant> argsForCall;
-
-  if (a == start)
+  if (a == isolate)
   {
-    argsForCall << unit << "replace";
-    method = "StartUnit";
-  }
-  else if (a == stop)
-  {
-    argsForCall << unit << "replace";
-    method = "StopUnit";
-  }
-  else if (a == restart)
-  {
-    argsForCall << unit << "replace";
-    method = "RestartUnit";
-  }
-  else if (a == reload)
-  {
-    argsForCall << unit << "replace";
-    method = "ReloadUnit";
-  }
-  else if (a == isolate)
-  {
+    QList<QVariant> argsForCall;
     argsForCall << unit << "isolate";
-    method = "StartUnit";
+    authServiceAction("org.freedesktop.systemd1",
+	"/org/freedesktop/systemd1",
+	"org.freedesktop.systemd1.Manager",
+	"StartUnit",
+	argsForCall);    
   }
-  else if (a == enable)
+  if (a == enable)
   {
+    QList<QString> unitsForCall;
+    QList<QVariant> argsForCall;
+    unitsForCall << unit;
     argsForCall << QVariant(unitsForCall) << false << true;
-    method = "EnableUnitFiles";
+    authServiceAction("org.freedesktop.systemd1",
+	"/org/freedesktop/systemd1",
+	"org.freedesktop.systemd1.Manager",
+	"EnableUnitFiles",
+	argsForCall);
   }
-  else if (a == disable)
+  if (a == disable)
   {
+    QList<QString> unitsForCall;
+    QList<QVariant> argsForCall;
+    unitsForCall << unit;
     argsForCall << QVariant(unitsForCall) << false;
-    method = "DisableUnitFiles";
+    authServiceAction("org.freedesktop.systemd1",
+	"/org/freedesktop/systemd1",
+	"org.freedesktop.systemd1.Manager",
+	"DisableUnitFiles",
+	argsForCall);
   }
-  else if (a == mask)
+  if (a == mask)
   {
+    QList<QString> unitsForCall;
+    QList<QVariant> argsForCall;
+    unitsForCall << unit;
     argsForCall << QVariant(unitsForCall) << false << true;
-    method = "MaskUnitFiles";
+    authServiceAction("org.freedesktop.systemd1",
+        "/org/freedesktop/systemd1",
+        "org.freedesktop.systemd1.Manager",
+        "MaskUnitFiles",
+        argsForCall);
   }
-  else if (a == unmask)
+  if (a == unmask)
   {
+    QList<QString> unitsForCall;
+    QList<QVariant> argsForCall;
+    unitsForCall << unit;
     argsForCall << QVariant(unitsForCall) << false;
-    method = "UnmaskUnitFiles";
+    authServiceAction("org.freedesktop.systemd1",
+        "/org/freedesktop/systemd1",
+        "org.freedesktop.systemd1.Manager",
+        "UnmaskUnitFiles",
+        argsForCall);
   }
-  else if (a == reloaddaemon)
-    method = "Reload";
-  else if (a == reexecdaemon)
-    method = "Reexecute";
-
-  // Execute the DBus actions
-  if (!method.isEmpty() && requiresAuth)
-    authServiceAction(connSystemd, pathSysdMgr, ifaceMgr, method, argsForCall);
-  else if (!method.isEmpty())
+  if (a == reloaddaemon)
   {
-    // user unit
-    callDbusMethod(method, sysdMgr, bus, argsForCall);
-    if (method == "EnableUnitFiles" || method == "DisableUnitFiles" || method == "MaskUnitFiles" || method == "UnmaskUnitFiles")
-      callDbusMethod("Reload", sysdMgr, bus);
+    QList<QVariant> argsForCall;
+    authServiceAction("org.freedesktop.systemd1",
+        "/org/freedesktop/systemd1",
+        "org.freedesktop.systemd1.Manager",
+        "Reload",
+        argsForCall);
+  }
+  if (a == reexecdaemon)
+  {
+    QList<QVariant> argsForCall;
+    authServiceAction("org.freedesktop.systemd1",
+        "/org/freedesktop/systemd1",
+        "org.freedesktop.systemd1.Manager",
+        "Reexecute",
+        argsForCall);
   }
 }
 
-void kcmsystemd::slotSessionContextMenu(const QPoint &pos)
+bool kcmsystemd::eventFilter(__attribute__((unused)) QObject *watched, QEvent* event)
 {
-  // Slot for creating the right-click menu in the session list
-
-  // Setup DBus interfaces
-  QDBusObjectPath pathSession = QDBusObjectPath(ui.tblSessions->model()->index(ui.tblSessions->indexAt(pos).row(),1).data().toString());
-
-  // Create rightclick menu items
-  QMenu menu(this);
-  QAction *activate = menu.addAction(i18n("&Activate session"));
-  QAction *terminate = menu.addAction(i18n("&Terminate session"));
-  QAction *lock = menu.addAction(i18n("&Lock session"));
-
-  if (ui.tblSessions->model()->index(ui.tblSessions->indexAt(pos).row(),2).data().toString() == "active")
-    activate->setEnabled(false);
-
-  if (getDbusProperty("Type", logdSession, pathSession) == "tty")
-    lock->setEnabled(false);
-
-  QAction *a = menu.exec(ui.tblSessions->viewport()->mapToGlobal(pos));
-
-  QString method;
-  if (a == activate)
+  // Eventfilter for catching mouse move events over the unit list
+  // Used for dynamically generating tooltips for units
+  if (event->type() == QEvent::MouseMove)
   {
-    method = "Activate";
-    QList<QVariant> argsForCall;
-    authServiceAction(connLogind, pathSession.path(), ifaceSession, method, argsForCall);
-  }
-  if (a == terminate)
-  {
-    method = "Terminate";
-    QList<QVariant> argsForCall;
-    authServiceAction(connLogind, pathSession.path(), ifaceSession, method, argsForCall);
-  }
-  if (a == lock)
-  {
-    method = "Lock";
-    QList<QVariant> argsForCall;
-    authServiceAction(connLogind, pathSession.path(), ifaceSession, method, argsForCall);
-  }
-}
-
-
-bool kcmsystemd::eventFilter(QObject *obj, QEvent* event)
-{
-  // Eventfilter for catching mouse move events over session list
-  // Used for dynamically generating tooltips
-
-  if (event->type() == QEvent::MouseMove && obj->parent()->objectName() == "tblSessions")
-  {
-    // Session list
     QMouseEvent *me = static_cast<QMouseEvent*>(event);
-    QModelIndex inSessionModel = ui.tblSessions->indexAt(me->pos());
-    if (!inSessionModel.isValid())
+    QModelIndex inUnitsModel, inProxyModelAct, inProxyModelUnitId;
+    inProxyModelUnitId = ui.tblServices->indexAt(me->pos());
+    inProxyModelAct = proxyModelUnitId->mapToSource(inProxyModelUnitId);
+    inUnitsModel = proxyModelAct->mapToSource(inProxyModelAct);
+    if (!inUnitsModel.isValid())
       return false;
 
-    if (sessionModel->itemFromIndex(inSessionModel)->row() != lastSessionRowChecked)
+    if (unitsModel->itemFromIndex(inUnitsModel)->row() != lastRowChecked)
     {
-      // Cursor moved to a different row. Only build tooltips when moving
-      // cursor to a new row to avoid excessive DBus calls.
-
-      QString selSession = ui.tblSessions->model()->index(ui.tblSessions->indexAt(me->pos()).row(),0).data().toString();
-      QDBusObjectPath spath = QDBusObjectPath(ui.tblSessions->model()->index(ui.tblSessions->indexAt(me->pos()).row(),1).data().toString());
-
-      QString toolTipText;
-      toolTipText.append("<FONT COLOR=white>");
-      toolTipText.append("<b>" + selSession + "</b><hr>");
-
-      // Use the DBus interface to get session properties
-      if (getDbusProperty("test", logdSession, spath) != "invalidIface")
+      for(QVariantMap::const_iterator iter = unitpaths.begin(); iter != unitpaths.end(); ++iter)
       {
-        // Session has a valid session DBus object
-        toolTipText.append(i18n("<b>VT:</b> %1", getDbusProperty("VTNr", logdSession, spath).toString()));
+	if (iter.key() == ui.tblServices->model()->index(ui.tblServices->indexAt(me->pos()).row(),3).data().toString())
+	{
+	  // If unit-id corresponds to column 3:
+	  QString toolTipText;
 
-        QString remoteHost = getDbusProperty("RemoteHost", logdSession, spath).toString();
-        if (getDbusProperty("Remote", logdSession, spath).toBool())
-        {
-          toolTipText.append(i18n("<br><b>Remote host:</b> %1", remoteHost));
-          toolTipText.append(i18n("<br><b>Remote user:</b> %1", getDbusProperty("RemoteUser", logdSession, spath).toString()));
-        }
-        toolTipText.append(i18n("<br><b>Service:</b> %1", getDbusProperty("Service", logdSession, spath).toString()));
+	  // Create a DBus interface
+	  QDBusConnection systembus = QDBusConnection::systemBus();
+	  QDBusInterface *iface = new QDBusInterface (
+		  "org.freedesktop.systemd1",
+		  iter.value().toString(),
+		  "org.freedesktop.systemd1.Unit",
+		  systembus,
+		  this);
+	  
+	  // Use the DBus interface to get unit properties
+	  if (iface->isValid())
+	  {
+	    QStringList req = iface->property("Requires").toStringList();
+	    QStringList wan = iface->property("Wants").toStringList();
+	    QStringList con = iface->property("Conflicts").toStringList();
+	    QStringList reqby = iface->property("RequiredBy").toStringList();
+	    QStringList wanby = iface->property("WantedBy").toStringList();
+	    QStringList conby = iface->property("ConflictedBy").toStringList();
+	    QStringList aft = iface->property("After").toStringList();	    
+	    QStringList bef = iface->property("Before").toStringList();	    
 
-        QString type = getDbusProperty("Type", logdSession, spath).toString();
-        toolTipText.append(i18n("<br><b>Type:</b> %1", type));
-        if (type == "x11")
-          toolTipText.append(i18n(" (display %1)", getDbusProperty("Display", logdSession, spath).toString()));
-        else if (type == "tty")
-        {
-          QString path, tty = getDbusProperty("TTY", logdSession, spath).toString();
-          if (!tty.isEmpty())
-            path = tty;
-          else if (!remoteHost.isEmpty())
-            path = getDbusProperty("Name", logdSession, spath).toString() + "@" + remoteHost;
-          toolTipText.append(" (" + path + ")");
-        }
-        toolTipText.append(i18n("<br><b>Class:</b> %1", getDbusProperty("Class", logdSession, spath).toString()));
-        toolTipText.append(i18n("<br><b>State:</b> %1", getDbusProperty("State", logdSession, spath).toString()));
-        toolTipText.append(i18n("<br><b>Scope:</b> %1", getDbusProperty("Scope", logdSession, spath).toString()));
-
-
-        toolTipText.append(i18n("<br><b>Created: </b>"));
-        if (getDbusProperty("Timestamp", logdSession, spath).toULongLong() == 0)
-          toolTipText.append("n/a");
-        else
-        {
-          QDateTime time;
-          time.setMSecsSinceEpoch(getDbusProperty("Timestamp", logdSession, spath).toULongLong()/1000);
-          toolTipText.append(time.toString());
-        }
+	    toolTipText.append("<FONT COLOR=black>");
+	    toolTipText.append("<span style=\"font-weight:bold;\">" + iface->property("Id").toString() + "</span><hr>");
+	    
+	    toolTipText.append("<span style=\"font-weight:bold;\">Requires:</span> ");
+	    foreach (QString i, req)
+	      toolTipText.append(i + " ");
+	    toolTipText.append("<br><span style=\"font-weight:bold;\">Wants:</span> ");
+	    foreach (QString i, wan)
+	      toolTipText.append(i + " ");
+	    toolTipText.append("<br><span style=\"font-weight:bold;\">Conflicts:</span> ");
+	    foreach (QString i, con)
+	      toolTipText.append(i + " ");
+	    toolTipText.append("<hr><span style=\"font-weight:bold;\">Required by:</span> ");
+	    foreach (QString i, reqby)
+	      toolTipText.append(i + " ");
+	    toolTipText.append("<br><span style=\"font-weight:bold;\">Wanted by:</span> ");
+	    foreach (QString i, wanby)
+	      toolTipText.append(i + " ");
+	    toolTipText.append("<br><span style=\"font-weight:bold;\">Conflicted by:</span> ");
+	    foreach (QString i, conby)
+	      toolTipText.append(i + " ");
+	    toolTipText.append("<hr><span style=\"font-weight:bold;\">After:</span> ");
+	    foreach (QString i, aft)
+	      toolTipText.append(i + " ");
+	    toolTipText.append("<br><span style=\"font-weight:bold;\">Before:</span> ");
+	    foreach (QString i, bef)
+	      toolTipText.append(i + " ");
+	    toolTipText.append("</FONT");
+	  }
+	  unitsModel->itemFromIndex(inUnitsModel)->setToolTip(toolTipText);
+	  delete iface;
+	}
       }
-
-      toolTipText.append("</FONT");
-      sessionModel->itemFromIndex(inSessionModel)->setToolTip(toolTipText);
-
-      lastSessionRowChecked = sessionModel->itemFromIndex(inSessionModel)->row();
-      return true;
-
-    } // Row was different
+    lastRowChecked = unitsModel->itemFromIndex(inUnitsModel)->row();
+    return true;
+    }
   }
   return false;
-  // return true;
 }
 
-void kcmsystemd::slotSystemSystemdReloading(bool status)
+void kcmsystemd::slotSystemdReloading(bool status)
 {
   if (status)
-    qDebug() << "System systemd reloading...";
+    qDebug() << "Systemd reloading...";
   else
-    slotRefreshUnitsList(false, sys);
-}
-
-void kcmsystemd::slotUserSystemdReloading(bool status)
-{
-  if (status)
-    qDebug() << "User systemd reloading...";
-  else
-    slotRefreshUnitsList(false, user);
+    slotRefreshUnitsList();
 }
 
 /*
@@ -1954,266 +1694,29 @@ void kcmsystemd::slotUnitUnloaded(QString id, QDBusObjectPath path)
 }
 */
 
-void kcmsystemd::slotSystemUnitsChanged()
+void kcmsystemd::slotUnitFilesChanged()
 {
-  // qDebug() << "System units changed";
-  slotRefreshUnitsList(false, sys);
+  // qDebug() << "Unit files changed.";
+  // slotRefreshUnitsList();
 }
 
-void kcmsystemd::slotUserUnitsChanged()
+void kcmsystemd::slotPropertiesChanged(QString iface_name, __attribute__((unused)) QVariantMap changed_props, __attribute__((unused)) QStringList invalid_props)
 {
-  // qDebug() << "User units changed";
-  slotRefreshUnitsList(false, user);
-}
-
-void kcmsystemd::slotLogindPropertiesChanged(QString, QVariantMap, QStringList)
-{
-  // qDebug() << "Logind properties changed on iface " << iface_name;
-  slotRefreshSessionList();
+  // qDebug() << "Properties changed.";
+  // This signal gets emitted on two different interfaces,
+  // but no reason to call slotRefreshUnitsList() twice
+  if (iface_name == "org.freedesktop.systemd1.Unit")
+    slotRefreshUnitsList();
+  updateUnitCount();
 }
 
 void kcmsystemd::slotLeSearchUnitChanged(QString term)
 {
-  if (QObject::sender()->objectName() == "leSearchUnit")
-  {
-    systemUnitFilterModel->addFilterRegExp(unitName, term);
-    systemUnitFilterModel->invalidate();
-    ui.tblUnits->sortByColumn(ui.tblUnits->horizontalHeader()->sortIndicatorSection(),
-                              ui.tblUnits->horizontalHeader()->sortIndicatorOrder());
-  }
-  else if (QObject::sender()->objectName() == "leSearchUserUnit")
-  {
-    userUnitFilterModel->addFilterRegExp(unitName, term);
-    userUnitFilterModel->invalidate();
-    ui.tblUserUnits->sortByColumn(ui.tblUserUnits->horizontalHeader()->sortIndicatorSection(),
-                                  ui.tblUserUnits->horizontalHeader()->sortIndicatorOrder());
-  }
+  searchTerm = term;
+  proxyModelUnitId->setFilterRegExp(QRegExp("(?=.*" + searchTerm + ")(?=.*" + filterUnitType + "$)", Qt::CaseInsensitive, QRegExp::RegExp));
+  proxyModelUnitId->setFilterKeyColumn(3);
+  int section = ui.tblServices->horizontalHeader()->sortIndicatorSection();
+  Qt::SortOrder order = ui.tblServices->horizontalHeader()->sortIndicatorOrder();
+  ui.tblServices->sortByColumn(section, order);
   updateUnitCount();
 }
-
-void kcmsystemd::slotCmbConfFileChanged(int index)
-{
-  ui.lblConfFile->setText(i18n("File to be written: %1/%2", etcDir, listConfFiles.at(index)));
-
-  proxyModelConf->setFilterRegExp(ui.cmbConfFile->itemText(index));
-  proxyModelConf->setFilterKeyColumn(2);
-}
-
-void kcmsystemd::slotUpdateTimers()
-{
-  // Updates the left and passed columns in the timers list
-  for (int row = 0; row < timerModel->rowCount(); ++row)
-  {
-    QDateTime next = timerModel->index(row, 1).data().toDateTime();
-    QDateTime last = timerModel->index(row, 3).data().toDateTime();
-    QDateTime current = QDateTime().currentDateTime();
-    qlonglong leftSecs = current.secsTo(next);
-    qlonglong passedSecs = last.secsTo(current);
-
-    QString left;
-    if (leftSecs >= 31536000)
-      left = QString::number(leftSecs / 31536000) + " years";
-    else if (leftSecs >= 604800)
-      left = QString::number(leftSecs / 604800) + " weeks";
-    else if (leftSecs >= 86400)
-      left = QString::number(leftSecs / 86400) + " days";
-    else if (leftSecs >= 3600)
-      left = QString::number(leftSecs / 3600) + " hr";
-    else if (leftSecs >= 60)
-      left = QString::number(leftSecs / 60) + " min";
-    else if (leftSecs < 0)
-      left = "0 s";
-    else
-      left = QString::number(leftSecs) + " s";
-    timerModel->setData(timerModel->index(row, 2), left);
-
-    QString passed;
-    if (timerModel->index(row, 3).data() == "n/a")
-      passed = "n/a";
-    else if (passedSecs >= 31536000)
-      passed = QString::number(passedSecs / 31536000) + " years";
-    else if (passedSecs >= 604800)
-      passed = QString::number(passedSecs / 604800) + " weeks";
-    else if (passedSecs >= 86400)
-      passed = QString::number(passedSecs / 86400) + " days";
-    else if (passedSecs >= 3600)
-      passed = QString::number(passedSecs / 3600) + " hr";
-    else if (passedSecs >= 60)
-      passed = QString::number(passedSecs / 60) + " min";
-    else if (passedSecs < 0)
-      passed = "0 s";
-    else
-      passed = QString::number(passedSecs) + " s";
-    timerModel->setData(timerModel->index(row, 4), passed);
-  }
-}
-
-QList<SystemdUnit> kcmsystemd::getUnitsFromDbus(dbusBus bus)
-{
-  // get an updated list of units via dbus
-
-  QList<SystemdUnit> list;
-  QList<unitfile> unitfileslist;
-  QDBusMessage dbusreply;
-
-  dbusreply = callDbusMethod("ListUnits", sysdMgr, bus);
-
-  if (dbusreply.type() == QDBusMessage::ReplyMessage)
-  {
-
-    const QDBusArgument argUnits = dbusreply.arguments().at(0).value<QDBusArgument>();
-    int tal = 0;
-    if (argUnits.currentType() == QDBusArgument::ArrayType)
-    {
-      argUnits.beginArray();
-      while (!argUnits.atEnd())
-      {
-        SystemdUnit unit;
-        argUnits >> unit;
-        list.append(unit);
-
-        // qDebug() << "Added unit " << unit.id;
-        tal++;
-      }
-      argUnits.endArray();
-    }
-    // qDebug() << "Added " << tal << " units on bus " << bus;
-    tal = 0;
-
-    // Get a list of unit files
-    dbusreply = callDbusMethod("ListUnitFiles", sysdMgr, bus);
-    const QDBusArgument argUnitFiles = dbusreply.arguments().at(0).value<QDBusArgument>();
-    argUnitFiles.beginArray();
-    while (!argUnitFiles.atEnd())
-    {
-      unitfile u;
-      argUnitFiles.beginStructure();
-      argUnitFiles >> u.name >> u.status;
-      argUnitFiles.endStructure();
-      unitfileslist.append(u);
-    }
-    argUnitFiles.endArray();
-
-    // Add unloaded units to the list
-    for (int i = 0;  i < unitfileslist.size(); ++i)
-    {
-      int index = list.indexOf(SystemdUnit(unitfileslist.at(i).name.section('/',-1)));
-      if (index > -1)
-      {
-        // The unit was already in the list, add unit file and its status
-        list[index].unit_file = unitfileslist.at(i).name;
-        list[index].unit_file_status = unitfileslist.at(i).status;
-      }
-      else
-      {
-        // Unit not in the list, add it
-        QFile unitfile(unitfileslist.at(i).name);
-        if (unitfile.symLinkTarget().isEmpty())
-        {
-          SystemdUnit unit;
-          unit.id = unitfileslist.at(i).name.section('/',-1);
-          unit.load_state = "unloaded";
-          unit.active_state = "-";
-          unit.sub_state = "-";
-          unit.unit_file = unitfileslist.at(i).name;
-          unit.unit_file_status= unitfileslist.at(i).status;
-          list.append(unit);
-
-          // qDebug() << "Added unit " << unit.id;
-          tal++;
-        }
-      }
-    }
-    // qDebug() << "Added " << tal << " units from files on bus " << bus;
-
-  }
-
-  return list;
-}
-
-QVariant kcmsystemd::getDbusProperty(QString prop, dbusIface ifaceName, QDBusObjectPath path, dbusBus bus)
-{
-  // qDebug() << "Fetching property" << prop << ifaceName << path.path() << "on bus" << bus;
-  QString conn, ifc;
-  QDBusConnection abus("");
-  if (bus == user)
-    abus = QDBusConnection::connectToBus(userBusPath, connSystemd);
-  else
-    abus = systembus;
-
-  if (ifaceName == sysdMgr)
-  {
-    conn = connSystemd;
-    ifc = ifaceMgr;
-  }
-  else if (ifaceName == sysdUnit)
-  {
-    conn = connSystemd;
-    ifc = ifaceUnit;
-  }
-  else if (ifaceName == sysdTimer)
-  {
-    conn = connSystemd;
-    ifc = ifaceTimer;
-  }
-  else if (ifaceName == logdSession)
-  {
-    conn = connLogind;
-    ifc = ifaceSession;
-  }
-  QVariant r;
-  QDBusInterface *iface = new QDBusInterface (conn, path.path(), ifc, abus, this);
-  if (iface->isValid())
-  {
-    r = iface->property(prop.toLatin1());
-    delete iface;
-    return r;
-  }
-  qDebug() << "Interface" << ifc << "invalid for" << path.path();
-  return QVariant("invalidIface");
-}
-
-QDBusMessage kcmsystemd::callDbusMethod(QString method, dbusIface ifaceName, dbusBus bus, const QList<QVariant> &args)
-{
-  // qDebug() << "Calling method" << method << "with iface" << ifaceName << "on bus" << bus;
-  QDBusConnection abus("");
-  if (bus == user)
-    abus = QDBusConnection::connectToBus(userBusPath, connSystemd);
-  else
-    abus = systembus;
-
-  QDBusInterface *iface;
-  if (ifaceName == sysdMgr)
-    iface = new QDBusInterface (connSystemd, pathSysdMgr, ifaceMgr, abus, this);
-  else if (ifaceName == logdMgr)
-    iface = new QDBusInterface (connLogind, pathLogdMgr, ifaceLogdMgr, abus, this);
-
-  QDBusMessage msg;
-  if (iface->isValid())
-  {
-    if (args.isEmpty())
-      msg = iface->call(QDBus::AutoDetect, method.toLatin1());
-    else
-      msg = iface->callWithArgumentList(QDBus::AutoDetect, method.toLatin1(), args);
-    delete iface;
-    if (msg.type() == QDBusMessage::ErrorMessage)
-      qDebug() << "DBus method call failed: " << msg.errorMessage();
-  }
-  else
-  {
-    qDebug() << "Invalid DBus interface on bus" << bus;
-    delete iface;
-  }
-  return msg;
-}
-
-void kcmsystemd::displayMsgWidget(KMessageWidget::MessageType type, QString msg)
-{
-  KMessageWidget *msgWidget = new KMessageWidget;
-  msgWidget->setText(msg);
-  msgWidget->setMessageType(type);
-  ui.verticalLayoutMsg->insertWidget(0, msgWidget);
-  msgWidget->animatedShow();
-}
-
-#include "kcmsystemd.moc"

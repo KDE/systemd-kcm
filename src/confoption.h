@@ -1,9 +1,9 @@
 /*******************************************************************************
- * Copyright (C) 2013-2015 Ragnar Thomsen <rthomsen6@gmail.com>                *
+ * Copyright (C) 2013-2014 Ragnar Thomsen <rthomsen6@gmail.com>                *
  *                                                                             *
  * This program is free software: you can redistribute it and/or modify it     *
  * under the terms of the GNU General Public License as published by the Free  *
- * Software Foundation, either version 2 of the License, or (at your option)   *
+ * Software Foundation, either version 3 of the License, or (at your option)   *
  * any later version.                                                          *
  *                                                                             *
  * This program is distributed in the hope that it will be useful, but WITHOUT *
@@ -44,21 +44,67 @@ class confOption {
     typedef boost::chrono::duration<double, boost::ratio<3600, 1> > hours;
     typedef boost::chrono::duration<double, boost::ratio<86400, 1> > days;
     typedef boost::chrono::duration<double, boost::ratio<604800, 1> > weeks;
-    typedef boost::chrono::duration<double, boost::ratio<2629800, 1> > months; // define a month as 30.4375days
+    typedef boost::chrono::duration<double, boost::ratio<2592000, 1> > months; // define a month as 30days
     typedef boost::chrono::duration<double, boost::ratio<29030400, 1> > years;
     typedef enum timeUnit { ns, us, ms, s, min, h, d, w, month, year } timeUnit;
     
     confFile file;
+    bool active;
+    QVariant defVal;
+    QString name;
     settingType type;
-    QString uniqueName, realName, toolTip;
-    qlonglong minVal = 0, maxVal = 999999999;
-    QStringList possibleVals = QStringList();
+    QStringList possibleVals;
+    qlonglong minVal, maxVal;
+    timeUnit defUnit, defReadUnit, minUnit, maxUnit;
     static QStringList capabilities;
+    static QVariantMap resLimitsMap;
+    static void setResLimitsMap(QVariantMap map);
     
     confOption();
     // Used for comparing
     confOption(QString newName);
-    confOption(QVariantMap);
+    // RESLIMIT
+    confOption(confFile file,
+               QString newName,
+               settingType newType);
+    // BOOL and STRING
+    confOption(confFile file,
+               QString newName,
+               settingType newType,
+               QVariant newDefVal);
+    // SIZE
+    confOption(confFile file,
+               QString newName,
+               settingType newType,
+               QVariant newDefVal,
+               qulonglong newMaxVal);
+    // INTEGER
+    confOption(confFile file,
+               QString newName,
+               settingType newType,
+               QVariant newDefVal,
+               qlonglong newMinVal,
+               qlonglong newMaxVal);
+    // LIST
+    confOption(confFile file,
+               QString newName,
+               settingType newType,
+               QVariant newDefVal,
+               QStringList newPossibleVals);
+    // MULTILIST
+    confOption(confFile file,
+               QString newName,
+               settingType newType,
+               QStringList newPossibleVals);
+    // TIME
+    confOption(confFile file,
+               QString newName,
+               settingType newType,
+               QVariant newDefVal,
+               timeUnit newDefUnit, // the unit of newDefVal, used in ui and written to file
+               timeUnit newDefReadUnit, // used when reading unitless values
+               timeUnit newMinUnit,
+               timeUnit newMaxUnit);
     
     bool operator==(const confOption& other) const;
     int setValue(QVariant);
@@ -66,15 +112,12 @@ class confOption {
     bool isDefault() const;
     void setToDefault();
     QVariant getValue() const;
-    QString getValueAsString() const;
     QString getLineForFile() const;
     QString getFilename() const;
-    QString getTimeUnit() const;
-
+    
   private:
-    bool hasNsec = false;
-    QVariant value, defVal;
-    timeUnit defUnit = timeUnit::s, defReadUnit = timeUnit::s, minUnit = timeUnit::ns, maxUnit = timeUnit::year;
+    QVariant value;
+    QString realName;
     QVariant convertTimeUnit(double, timeUnit, timeUnit);
 };
 
