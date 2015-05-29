@@ -1016,6 +1016,7 @@ void kcmsystemd::setupConf()
   myDelegate = new ConfDelegate(this);
   ui.tblConf->setItemDelegate(myDelegate);
 
+  ui.tblConf->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
   ui.tblConf->setColumnHidden(2, true);
   ui.tblConf->resizeColumnsToContents();
 }
@@ -1036,6 +1037,7 @@ void kcmsystemd::setupUnitslist()
   // ptrUnits = &unitslist;
 
   // Setup the system unit model
+  ui.tblUnits->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
   systemUnitModel = new UnitModel(this, &unitslist);
   systemUnitFilterModel = new SortFilterUnitModel(this);
   systemUnitFilterModel->setDynamicSortFilter(false);
@@ -1045,6 +1047,7 @@ void kcmsystemd::setupUnitslist()
   ui.tblUnits->sortByColumn(3, Qt::AscendingOrder);
 
   // Setup the user unit model
+  ui.tblUserUnits->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
   userUnitModel = new UnitModel(this, &userUnitslist, userBusPath);
   userUnitFilterModel = new SortFilterUnitModel(this);
   userUnitFilterModel->setDynamicSortFilter(false);
@@ -1076,6 +1079,7 @@ void kcmsystemd::setupSessionlist()
   sessionModel->setHorizontalHeaderItem(3, new QStandardItem(i18n("User ID")));
   sessionModel->setHorizontalHeaderItem(4, new QStandardItem(i18n("User Name")));
   sessionModel->setHorizontalHeaderItem(5, new QStandardItem(i18n("Seat ID")));
+  ui.tblSessions->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 
   // Set model for QTableView (should be called after headers are set)
   ui.tblSessions->setModel(sessionModel);
@@ -1102,9 +1106,9 @@ void kcmsystemd::setupTimerlist()
   timerModel->setHorizontalHeaderItem(3, new QStandardItem(i18n("Last")));
   timerModel->setHorizontalHeaderItem(4, new QStandardItem(i18n("Passed")));
   timerModel->setHorizontalHeaderItem(5, new QStandardItem(i18n("Activates")));
+  ui.tblTimers->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 
   // Set model for QTableView (should be called after headers are set)
-  ui.tblTimers->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
   ui.tblTimers->setModel(timerModel);
   ui.tblTimers->sortByColumn(1, Qt::AscendingOrder);
 
