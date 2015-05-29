@@ -53,7 +53,6 @@ add_definitions(-DTRANSLATION_DOMAIN=\"kcmsystemd\")
 add_subdirectory(other)
 add_subdirectory(src)
 
-find_package(KF5I18n CONFIG REQUIRED)
 ki18n_install(po)
 
 feature_summary(WHAT ALL FATAL_ON_MISSING_REQUIRED_PACKAGES)
