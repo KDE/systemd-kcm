@@ -46,7 +46,7 @@ kcmsystemd::kcmsystemd(QWidget *parent, const QVariantList &args) : KCModule(par
                                      "KDE Systemd Control Module", 
                                      KAboutLicense::GPL_V3,
                                      "Copyright (C) 2013-2015 Ragnar Thomsen", QString(),
-                                     "https://github.com/rthomsen/kcmsystemd");
+                                     "https://projects.kde.org/projects/playground/sysadmin/systemd-kcm/");
   about->addAuthor("Ragnar Thomsen", "Main Developer", "rthomsen6@gmail.com");
   setAboutData(about);
   ui.setupUi(this);
