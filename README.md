@@ -43,5 +43,3 @@ https://bugs.kde.org/
 
 Git repository can be found at:
 http://quickgit.kde.org/?p=systemd-kcm.git
-
-![](https://github.com/rthomsen/kcmsystemd/blob/master/screenshot1.png)
