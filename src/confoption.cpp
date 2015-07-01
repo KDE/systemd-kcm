@@ -17,6 +17,8 @@
 
 #include <QDebug>
 
+#include <boost/filesystem.hpp>
+
 #include "confoption.h"
 
 // Initialize two static class members
@@ -338,29 +340,52 @@ int confOption::setValueFromFile(QString line)
   
   else if (type == SIZE)
   {
-    // RegExp to match a number (possibly with decimals) followed by a size unit (or no unit for byte)
-    QRegExp rxSize = QRegExp("(\\b\\d+\\.?\\d*(K|M|G|T|P|E)?\\b)");
-    
+    // RegExp to match a number (possibly with decimals) followed by a
+    // size unit (or no unit for byte), or a % (for RuntimeDirectorySize)
+    QRegExp rxSize;
+    if (realName == "RuntimeDirectorySize")
+      rxSize = QRegExp("^(\\d+\\.?\\d*)(K|M|G|T|P|E|%)?$");
+    else
+      rxSize = QRegExp("^(\\d+\\.?\\d*)(K|M|G|T|P|E)?$");
+
     int pos = 0;
     pos = rxSize.indexIn(rval);
+
     if (pos > -1 && rxSize.cap(0) == rval.trimmed())
     {
       // convert the specified size unit to megabytes
-      if (rxSize.cap(0).contains("K"))
-        value = rxSize.cap(0).remove("K").toDouble() / 1024;
-      else if (rxSize.cap(0).contains("M"))
-        value = rxSize.cap(0).remove("M").toDouble();
-      else if (rxSize.cap(0).contains("G"))
-        value = rxSize.cap(0).remove("G").toDouble() * 1024;
-      else if (rxSize.cap(0).contains("T"))
-        value = rxSize.cap(0).remove("T").toDouble() * 1024 * 1024;
-      else if (rxSize.cap(0).contains("P"))
-        value = rxSize.cap(0).remove("P").toDouble() * 1024 * 1024 * 1024;
-      else if (rxSize.cap(0).contains("E"))
-        value = rxSize.cap(0).remove("E").toDouble() * 1024 * 1024 * 1024 * 1024;
+      if (rxSize.cap(2) == "K")
+        value = rxSize.cap(1).toDouble() / 1024;
+      else if (rxSize.cap(2) == "M")
+        value = rxSize.cap(1).toDouble();
+      else if (rxSize.cap(2) == "G")
+        value = rxSize.cap(1).toDouble() * 1024;
+      else if (rxSize.cap(2) == "T")
+        value = rxSize.cap(1).toDouble() * 1024 * 1024;
+      else if (rxSize.cap(2) == "P")
+        value = rxSize.cap(1).toDouble() * 1024 * 1024 * 1024;
+      else if (rxSize.cap(2) == "E")
+        value = rxSize.cap(1).toDouble() * 1024 * 1024 * 1024 * 1024;
       else
-        value = rxSize.cap(0).toDouble() / 1024 / 1024;
+        value = rxSize.cap(1).toDouble() / 1024 / 1024;
       
+      if (realName == "RuntimeDirectorySize")
+      {
+        // This option supports both size units and %
+        if (rxSize.cap(2) == "%") {
+          value = rxSize.cap(1).toInt();
+        } else {
+          // Use boost to find volatile partition size
+          boost::filesystem::path pv ("/run");
+          boost::filesystem::space_info logVpart = boost::filesystem::space(pv);
+          qulonglong sizeMB = logVpart.capacity / 1024 / 1024;
+
+          // Convert the size to percentage. maxVal contains the volatile
+          // partitions size, which is half the RAM size.
+          value = 100 * value.toDouble() / (2 * sizeMB);
+        }
+      }
+
       // Convert from double to ulonglong (we don't support float in ui)
       value = value.toULongLong();
       return 0;

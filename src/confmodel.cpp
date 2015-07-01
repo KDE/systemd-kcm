@@ -51,7 +51,9 @@ QVariant ConfModel::data(const QModelIndex & index, int role) const
   {
     if (index.column() == 0)
     {
-      if (kcmsystemd::confOptList.at(index.row()).type == SIZE)
+      if (kcmsystemd::confOptList.at(index.row()).realName == "RuntimeDirectorySize")
+        return QString(kcmsystemd::confOptList.at(index.row()).realName + " (%)");
+      else if (kcmsystemd::confOptList.at(index.row()).type == SIZE)
         return QString(kcmsystemd::confOptList.at(index.row()).realName + " (MB)");
       else if (kcmsystemd::confOptList.at(index.row()).type == TIME)
         return QString(kcmsystemd::confOptList.at(index.row()).realName + " (" +

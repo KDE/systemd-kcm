@@ -882,6 +882,18 @@ void kcmsystemd::setupConfigParms()
   map["toolTip"] = i18n("<p>Configures the delay after which the action configured in IdleAction is taken after the system is idle.</p>");
   confOptList.append(confOption(map));
 
+  if (systemdVersion >= 211)
+  {
+    map.clear();
+    map["name"] = "RuntimeDirectorySize";
+    map["file"] = LOGIND;
+    map["type"] = SIZE;
+    map["defVal"] = 10;
+    map["maxVal"] = 100;
+    map["toolTip"] = i18n("<p>Sets the size limit on the $XDG_RUNTIME_DIR runtime directory for each user who logs in. Percentage of physical RAM.</p>");
+    confOptList.append(confOption(map));
+  }
+
   if (systemdVersion >= 212)
   {
     map.clear();
