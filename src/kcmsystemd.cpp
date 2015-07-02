@@ -865,6 +865,17 @@ void kcmsystemd::setupConfigParms()
   map["toolTip"] = i18n("<p>Controls whether actions triggered by the lid switch are subject to inhibitor locks.</p>");
   confOptList.append(confOption(map));
 
+  if (systemdVersion >= 220)
+  {
+    map.clear();
+    map["name"] = "HoldoffTimeoutSec";
+    map["file"] = LOGIND;
+    map["type"] = TIME;
+    map["defVal"] = 30;
+    map["toolTip"] = i18n("<p>Timeout after system startup or system resume in which systemd will hold off on reacting to lid events.</p>");
+    confOptList.append(confOption(map));
+  }
+
   map.clear();
   map["name"] = "IdleAction";
   map["file"] = LOGIND;
