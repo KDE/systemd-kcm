@@ -36,9 +36,9 @@ int ConfModel::columnCount(const QModelIndex &) const
 QVariant ConfModel::headerData(int section, Qt::Orientation orientation, int role) const
 {
   if (orientation == Qt::Horizontal && role == Qt::DisplayRole && section == 0)
-    return QString("Item");
+    return i18n("Item");
   if (orientation == Qt::Horizontal && role == Qt::DisplayRole && section == 1)
-    return QString("Value");
+    return i18n("Value");
   return QVariant();
 }
 
@@ -52,12 +52,15 @@ QVariant ConfModel::data(const QModelIndex & index, int role) const
     if (index.column() == 0)
     {
       if (kcmsystemd::confOptList.at(index.row()).realName == "RuntimeDirectorySize")
-        return QString(kcmsystemd::confOptList.at(index.row()).realName + " (%)");
+        return i18nc("configuration name (unit)", "%1 (%)",
+                     kcmsystemd::confOptList.at(index.row()).realName);
       else if (kcmsystemd::confOptList.at(index.row()).type == SIZE)
-        return QString(kcmsystemd::confOptList.at(index.row()).realName + " (MB)");
+        return i18nc("configuration name (unit)", "%1 (MB)",
+                     kcmsystemd::confOptList.at(index.row()).realName);
       else if (kcmsystemd::confOptList.at(index.row()).type == TIME)
-        return QString(kcmsystemd::confOptList.at(index.row()).realName + " (" +
-                       kcmsystemd::confOptList.at(index.row()).getTimeUnit() + ")");
+        return i18nc("configuration name (unit)", "%1 (%2)",
+                     kcmsystemd::confOptList.at(index.row()).realName,
+                     kcmsystemd::confOptList.at(index.row()).getTimeUnit());
       else
         return kcmsystemd::confOptList.at(index.row()).realName;
     }

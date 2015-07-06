@@ -49,13 +49,13 @@ int UnitModel::columnCount(const QModelIndex &) const
 QVariant UnitModel::headerData(int section, Qt::Orientation orientation, int role) const
 {
   if (orientation == Qt::Horizontal && role == Qt::DisplayRole && section == 0)
-    return QString("Load state");
+    return i18n("Load State");
   if (orientation == Qt::Horizontal && role == Qt::DisplayRole && section == 1)
-    return QString("Active state");
+    return i18n("Active State");
   if (orientation == Qt::Horizontal && role == Qt::DisplayRole && section == 2)
-    return QString("Unit state");
+    return i18n("Unit State");
   if (orientation == Qt::Horizontal && role == Qt::DisplayRole && section == 3)
-    return QString("Unit");
+    return i18n("Unit");
   return QVariant();
 }
 

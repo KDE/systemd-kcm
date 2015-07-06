@@ -47,7 +47,7 @@ kcmsystemd::kcmsystemd(QWidget *parent, const QVariantList &args) : KCModule(par
                                      KAboutLicense::GPL_V3,
                                      "Copyright (C) 2013-2015 Ragnar Thomsen", QString(),
                                      "https://projects.kde.org/projects/playground/sysadmin/systemd-kcm/");
-  about->addAuthor("Ragnar Thomsen", "Main Developer", "rthomsen6@gmail.com");
+  about->addAuthor("Ragnar Thomsen", i18n("Main Developer"), "rthomsen6@gmail.com");
   setAboutData(about);
   ui.setupUi(this);
   setButtons(kcmsystemd::Default | kcmsystemd::Apply);
@@ -1759,7 +1759,7 @@ void kcmsystemd::slotUnitContextMenu(const QPoint &pos)
       r = editor.startDetached(kdePrefix + "/lib/libexec/kdesu", args);
     if (!r)
       displayMsgWidget(KMessageWidget::Error,
-                       i18n("Failed to open unit file!"));
+                       i18n("Failed to open unit file."));
     return;
   }
 
