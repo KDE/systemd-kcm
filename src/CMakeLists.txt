@@ -17,7 +17,7 @@ target_link_libraries(kcm_systemd
                       KF5::ConfigWidgets
                       KF5::Service
                       ${Boost_LIBRARIES}
-                      -lsystemd)
+                      ${JOURNALD_LIBRARIES})
 install(TARGETS kcm_systemd DESTINATION ${CMAKE_INSTALL_PLUGINDIR})
 
 qt5_use_modules(kcm_systemd Widgets DBus)
