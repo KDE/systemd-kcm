@@ -228,14 +228,14 @@ QStringList UnitModel::getLastJrnlEntries(QString unit) const
 
   sd_journal_flush_matches(journal);
 
-  r = sd_journal_add_match(journal, match1.toLatin1(), 0);
+  r = sd_journal_add_match(journal, match1.toUtf8(), 0);
   if (r != 0)
     return reply;
 
   if (!match2.isEmpty())
   {
     sd_journal_add_disjunction(journal);
-    r = sd_journal_add_match(journal, match2.toLatin1(), 0);
+    r = sd_journal_add_match(journal, match2.toUtf8(), 0);
     if (r != 0)
       return reply;
   }
@@ -266,7 +266,7 @@ QStringList UnitModel::getLastJrnlEntries(QString unit) const
       r = sd_journal_get_data(journal, "PRIORITY", &data, &length);
       if (r == 0)
       {
-        int prio = QString::fromLatin1((const char *)data, length).section("=",1).toInt();
+        int prio = QString::fromUtf8((const char *)data, length).section("=",1).toInt();
         if (prio <= 3)
           line.append("<span style='color:tomato;'>");
         else if (prio == 4)
@@ -279,7 +279,7 @@ QStringList UnitModel::getLastJrnlEntries(QString unit) const
       r = sd_journal_get_data(journal, "MESSAGE", &data, &length);
       if (r == 0)
       {
-        line.append(": " + QString::fromLatin1((const char *)data, length).section("=",1) + "</span>");
+        line.append(": " + QString::fromUtf8((const char *)data, length).section("=",1) + "</span>");
         if (line.length() > 195)
           line = QString(line.left(195) + "..." + "</span>");
         reply << line;
