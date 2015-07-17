@@ -1,6 +1,7 @@
 [Domain]
 Name=Systemd KDE control module
 Name[gl]=Módulo de control de KDE para systemd
+Name[nl]=KDE besturingsmodule voor systemd
 Name[pt]=Módulo de controlo do Systemd para o KDE
 Name[pt_BR]=Módulo de controle do KDE para o Systemd
 Name[sv]=KDE-inställningsmodul för systemd
@@ -10,12 +11,14 @@ Icon=system-run
 [org.kde.kcontrol.kcmsystemd.save]
 Name=Save the systemd settings
 Name[gl]=Gardar a configuración de Systemd
+Name[nl]=De instellingen van systemd opslaan
 Name[pt]=Gravar a configuração do 'systemd'
 Name[pt_BR]=Salvar as configurações do systemd
 Name[sv]=Spara systemd-inställningar
 Name[x-test]=xxSave the systemd settingsxx
 Description=Administrator authorization is required to save the systemd settings
 Description[gl]=Precísase a autorización do administrado para gardar as configuracións de Systemd.
+Description[nl]=Autorisatie van systeembeheerder is vereist om instellingen van systemd op te slaan
 Description[pt]=É necessária a autorização do administrador para gravar a configuração do 'systemd'
 Description[pt_BR]=É necessária a autorização do administrador para salvar a configuração do systemd
 Description[sv]=Administratörsbehörighet krävs för att spara systemd-inställningar
@@ -26,12 +29,14 @@ Persistence=session
 [org.kde.kcontrol.kcmsystemd.dbusaction]
 Name=Manipulate a systemd unit over DBus
 Name[gl]=Manipular unha unidade de Systemd mediante DBus
+Name[nl]=Een eenheid van systemd via DBus besturen
 Name[pt]=Manipular uma unidade do Systemd por D-Bus
 Name[pt_BR]=Manipular uma unidade do systemd por D-Bus
 Name[sv]=Hantera en systemd-enhet via D-Bus
 Name[x-test]=xxManipulate a systemd unit over DBusxx
 Description=Administrator authorization is required to modify this unit
 Description[gl]=Precísase a autorización do administrador para modificar esta unidade.
+Description[nl]=Autorisatie van systeembeheerder is vereist om deze unit te wijzigen
 Description[pt]=É necessária a autorização do administrador para modificar esta unidade
 Description[pt_BR]=É necessária a autorização do administrador para modificar esta unidade
 Description[sv]=Administratörsbehörighet krävs för att modifiera den här enheten
