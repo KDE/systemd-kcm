@@ -1,6 +1,7 @@
 [Domain]
 Name=Systemd KDE control module
 Name[ca]=Mòdul de control de «systemd» pel KDE
+Name[de]=KDE-Kontrollmodul für systemd
 Name[fi]=KDE:n systemd-asetusosio
 Name[gl]=Módulo de control de KDE para systemd
 Name[nl]=KDE besturingsmodule voor systemd
@@ -15,6 +16,7 @@ Icon=system-run
 [org.kde.kcontrol.kcmsystemd.save]
 Name=Save the systemd settings
 Name[ca]=Desa la configuració del «systemd»
+Name[de]=systemd-Einstellungen speichern
 Name[fi]=systemd-asetusten tallennus
 Name[gl]=Gardar a configuración de Systemd
 Name[nl]=De instellingen van systemd opslaan
