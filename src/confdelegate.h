@@ -20,12 +20,14 @@
 
 #include <QStyledItemDelegate>
 
+#include "confoption.h"
+
 class ConfDelegate : public QStyledItemDelegate
 {
   Q_OBJECT
   
 public:
-  ConfDelegate(QObject *parent = 0);
+  ConfDelegate(QObject *parent = 0, const QList<confOption> *confOptList = 0);
 
   QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option,
                         const QModelIndex &index) const Q_DECL_OVERRIDE;
@@ -36,6 +38,9 @@ public:
 
   void updateEditorGeometry(QWidget *editor,
       const QStyleOptionViewItem &option, const QModelIndex &index) const Q_DECL_OVERRIDE;
+
+private:
+  const QList<confOption> *m_optList;
 };
 
 #endif // CONFDELEGATE_H

@@ -15,14 +15,17 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.              *
  *******************************************************************************/
 
+#include <QDebug>
 #include <QSpinBox>
+#include <QComboBox>
+#include <QLineEdit>
+#include <QStandardItemModel>
 
 #include "confdelegate.h"
-#include "confoption.h"
-#include "kcmsystemd.h"
 
-ConfDelegate::ConfDelegate(QObject *parent)
+ConfDelegate::ConfDelegate(QObject *parent, const QList<confOption> *confOptList)
     : QStyledItemDelegate(parent)
+    , m_optList(confOptList)
 {
 }
 
@@ -35,8 +38,12 @@ QWidget *ConfDelegate::createEditor(QWidget *parent,
   // qDebug() << "Creating editor";
 
   QString uniqueName = index.data(Qt::UserRole+1).toString();
-  int confIndex = kcmsystemd::confOptList.indexOf(confOption(uniqueName));
-  confOption const *opt = &kcmsystemd::confOptList.at(confIndex);
+  int confIndex = m_optList->indexOf(confOption(uniqueName));
+  if (confIndex == -1) {
+    qWarning() << "Config option" << uniqueName << "not found.";
+    return NULL;
+  }
+  const confOption *opt = &m_optList->at(confIndex);
 
   if (index.data(Qt::UserRole) == BOOL)
   {
@@ -60,8 +67,7 @@ QWidget *ConfDelegate::createEditor(QWidget *parent,
     QComboBox *editor = new QComboBox(parent);
 
     // Populate combobox
-    if (confIndex > -1)
-      editor->addItems(opt->possibleVals);
+    editor->addItems(opt->possibleVals);
 
     // editor->setFrame(false);
     return editor;

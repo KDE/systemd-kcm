@@ -1036,7 +1036,7 @@ void kcmsystemd::setupConf()
   
   // Use a custom delegate to enable different editor elements in the QTableView
   ConfDelegate *myDelegate;
-  myDelegate = new ConfDelegate(this);
+  myDelegate = new ConfDelegate(this, &confOptList);
   ui.tblConf->setItemDelegate(myDelegate);
 
   ui.tblConf->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
