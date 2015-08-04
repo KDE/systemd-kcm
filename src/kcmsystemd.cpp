@@ -32,10 +32,6 @@ using namespace KAuth;
 
 #include <boost/filesystem.hpp>
 
-// Static members
-ConfModel *kcmsystemd::confModel = new ConfModel();
-QList<confOption> kcmsystemd::confOptList;
-
 K_PLUGIN_FACTORY(kcmsystemdFactory, registerPlugin<kcmsystemd>();)
 
 kcmsystemd::kcmsystemd(QWidget *parent, const QVariantList &args) : KCModule(parent, args)
@@ -1028,7 +1024,7 @@ void kcmsystemd::setupConf()
 {
   // Sets up the configfile model and tableview
 
-  confModel = new ConfModel(this);
+  confModel = new ConfModel(this, &confOptList);
   proxyModelConf = new QSortFilterProxyModel(this);
   proxyModelConf->setSourceModel(confModel);
 

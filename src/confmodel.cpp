@@ -15,17 +15,21 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.              *
  *******************************************************************************/
 
-#include "confmodel.h"
-#include "kcmsystemd.h"
+#include <QFont>
 
-ConfModel::ConfModel(QObject *parent)
+#include <KLocalizedString>
+
+#include "confmodel.h"
+
+ConfModel::ConfModel(QObject *parent, QList<confOption> *confOptList)
  : QAbstractTableModel(parent)
+ , m_optList(confOptList)
 {
 }
 
 int ConfModel::rowCount(const QModelIndex &) const
 {
-  return kcmsystemd::confOptList.size();
+  return m_optList->size();
 }
 
 int ConfModel::columnCount(const QModelIndex &) const
@@ -42,52 +46,55 @@ QVariant ConfModel::headerData(int section, Qt::Orientation orientation, int rol
   return QVariant();
 }
 
-QVariant ConfModel::data(const QModelIndex & index, int role) const
+QVariant ConfModel::data(const QModelIndex &index, int role) const
 {
-  if (!index.isValid())
+
+  if (!index.isValid() || index.row() >= m_optList->size()) {
     return QVariant();
+  }
+  const confOption *opt = &m_optList->at(index.row());
 
   if (role == Qt::DisplayRole)
   {
     if (index.column() == 0)
     {
-      if (kcmsystemd::confOptList.at(index.row()).realName == "RuntimeDirectorySize")
+      if (opt->realName == "RuntimeDirectorySize")
         return i18nc("configuration name (unit)", "%1 (%)",
-                     kcmsystemd::confOptList.at(index.row()).realName);
-      else if (kcmsystemd::confOptList.at(index.row()).type == SIZE)
+                     opt->realName);
+      else if (opt->type == SIZE)
         return i18nc("configuration name (unit)", "%1 (MB)",
-                     kcmsystemd::confOptList.at(index.row()).realName);
-      else if (kcmsystemd::confOptList.at(index.row()).type == TIME)
+                     opt->realName);
+      else if (opt->type == TIME)
         return i18nc("configuration name (unit)", "%1 (%2)",
-                     kcmsystemd::confOptList.at(index.row()).realName,
-                     kcmsystemd::confOptList.at(index.row()).getTimeUnit());
+                     opt->realName,
+                     opt->getTimeUnit());
       else
-        return kcmsystemd::confOptList.at(index.row()).realName;
+        return opt->realName;
     }
     else if (index.column() == 1)
-      return kcmsystemd::confOptList.at(index.row()).getValueAsString();
+      return opt->getValueAsString();
     else if (index.column() == 2)
-      return kcmsystemd::confOptList.at(index.row()).getFilename();
+      return opt->getFilename();
   }
   else if (role == Qt::UserRole && index.column() == 1)
   {
     // Holds the type, used in the delegate to set different
     // types of editor widgets
-    return kcmsystemd::confOptList.at(index.row()).type;
+    return opt->type;
   }
   else if (role == Qt::UserRole+1 && index.column() == 1)
   {
     // Holds the uniqueName, used in createEditor in the delegate,
     // to set a pointer to the correct confOption.
-    return kcmsystemd::confOptList.at(index.row()).uniqueName;
+    return opt->uniqueName;
   }
   else if (role == Qt::UserRole+2 && index.column() == 1)
   {
     // Holds a QVariantMap, used in the delegate to save/retrieve selected
     // values in comboboxes for type MULTILIST
-    return QVariant(kcmsystemd::confOptList.at(index.row()).getValue().toMap());
+    return QVariant(opt->getValue().toMap());
   }
-  else if (role == Qt::FontRole && !kcmsystemd::confOptList.at(index.row()).isDefault())
+  else if (role == Qt::FontRole && !opt->isDefault())
   {
     // Set font to bold if value is not default
     QFont newfont;
@@ -96,7 +103,7 @@ QVariant ConfModel::data(const QModelIndex & index, int role) const
   }
   else if (role == Qt::ToolTipRole)
   {
-    return kcmsystemd::confOptList.at(index.row()).toolTip;
+    return opt->toolTip;
   }
 
   return QVariant();
@@ -109,11 +116,11 @@ bool ConfModel::setData(const QModelIndex &index, const QVariant &value, int rol
 
   if (role == Qt::DisplayRole && index.column() == 1)
   {
-    kcmsystemd::confOptList[index.row()].setValue(value);
+    (*m_optList)[index.row()].setValue(value);
   }
   else if (role == Qt::UserRole+2 && index.column() == 1)
   {
-    kcmsystemd::confOptList[index.row()].setValue(value);
+    (*m_optList)[index.row()].setValue(value);
   }
 
   emit dataChanged(index, index);

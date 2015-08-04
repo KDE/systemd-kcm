@@ -68,8 +68,6 @@ class kcmsystemd : public KCModule
     void defaults();
     void load();
     void save();
-    static ConfModel *confModel;
-    static QList<confOption> confOptList;
 
   private:
     Ui::kcmsystemd ui;
@@ -88,8 +86,11 @@ class kcmsystemd : public KCModule
     QVariant getDbusProperty(QString prop, dbusIface ifaceName, QDBusObjectPath path = QDBusObjectPath("/org/freedesktop/systemd1"), dbusBus bus = sys);
     QDBusMessage callDbusMethod(QString method, dbusIface ifaceName, dbusBus bus = sys, const QList<QVariant> &args = QList<QVariant> ());
     QList<QStandardItem *> buildTimerListRow(const SystemdUnit &unit, const QList<SystemdUnit> &list, dbusBus bus);
+
+    QList<confOption> confOptList;
     QProcess *kdeConfig;
     QSortFilterProxyModel *proxyModelConf;
+    ConfModel *confModel;
     SortFilterUnitModel *systemUnitFilterModel, *userUnitFilterModel;
     QStandardItemModel *sessionModel, *timerModel;
     UnitModel *systemUnitModel, *userUnitModel;
