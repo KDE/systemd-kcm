@@ -35,14 +35,15 @@ K_PLUGIN_FACTORY(kcmsystemdFactory, registerPlugin<kcmsystemd>();)
 
 kcmsystemd::kcmsystemd(QWidget *parent, const QVariantList &args) : KCModule(parent, args)
 {
-  KAboutData *about = new KAboutData("kcmsystemd",
-                                     "systemd-kcm",
+  KAboutData *about = new KAboutData(QStringLiteral("kcmsystemd"),
+                                     i18n("systemd-kcm"),
                                      SYSTEMD_KCM_VERSION,
-                                     "KDE Systemd Control Module", 
+                                     i18n("KDE Systemd Control Module"),
                                      KAboutLicense::GPL_V3,
-                                     "Copyright (C) 2013-2015 Ragnar Thomsen", QString(),
-                                     "https://projects.kde.org/projects/playground/sysadmin/systemd-kcm/");
-  about->addAuthor("Ragnar Thomsen", i18n("Main Developer"), "rthomsen6@gmail.com");
+                                     QStringLiteral("Copyright (C) 2013-2015 Ragnar Thomsen"),
+                                     QStringLiteral(),
+                                     QStringLiteral("https://projects.kde.org/projects/playground/sysadmin/systemd-kcm/"));
+  about->addAuthor(QStringLiteral("Ragnar Thomsen"), i18n("Main Developer"), QStringLiteral("rthomsen6@gmail.com"));
   setAboutData(about);
   ui.setupUi(this);
   setButtons(kcmsystemd::Default | kcmsystemd::Apply);
@@ -50,9 +51,9 @@ kcmsystemd::kcmsystemd(QWidget *parent, const QVariantList &args) : KCModule(par
   ui.leSearchUnit->setFocus();
 
   // See if systemd is reachable via dbus
-  if (getDbusProperty("Version", sysdMgr) != "invalidIface")
+  if (getDbusProperty(QStringLiteral("Version"), sysdMgr) != QLatin1String("invalidIface"))
   {
-    systemdVersion = getDbusProperty("Version", sysdMgr).toString().remove("systemd ").toInt();
+    systemdVersion = getDbusProperty(QStringLiteral("Version"), sysdMgr).toString().remove(QStringLiteral("systemd ")).toInt();
     qDebug() << "Detected systemd" << systemdVersion;
   }
   else
@@ -76,13 +77,13 @@ kcmsystemd::kcmsystemd(QWidget *parent, const QVariantList &args) : KCModule(par
   // Use kf5-config to get kde prefix
   kdeConfig = new QProcess(this);
   connect(kdeConfig, SIGNAL(readyReadStandardOutput()), this, SLOT(slotKdeConfig()));
-  kdeConfig->start("kf5-config", QStringList() << "--prefix");
+  kdeConfig->start(QStringLiteral("kf5-config"), QStringList() << QStringLiteral("--prefix"));
   
   // Find the configuration directory
-  if (QDir("/etc/systemd").exists()) {
-    etcDir = "/etc/systemd";
-  } else if (QDir("/usr/etc/systemd").exists()) {
-    etcDir = "/usr/etc/systemd";
+  if (QDir(QStringLiteral("/etc/systemd")).exists()) {
+    etcDir = QStringLiteral("/etc/systemd");
+  } else if (QDir(QStringLiteral("/usr/etc/systemd")).exists()) {
+    etcDir = QStringLiteral("/usr/etc/systemd");
   } else {
     // Failed to find systemd config directory
     ui.stackedWidget->setCurrentIndex(1);    
@@ -93,11 +94,11 @@ kcmsystemd::kcmsystemd(QWidget *parent, const QVariantList &args) : KCModule(par
                  << "journald.conf"
                  << "logind.conf";
   if (systemdVersion >= 215 &&
-      QFile(etcDir + "/coredump.conf").exists())
-    listConfFiles << "coredump.conf";
+      QFile(etcDir + QStringLiteral("/coredump.conf")).exists())
+    listConfFiles << QStringLiteral("coredump.conf");
   
-  partPersSizeMB = getPartitionSize("/var/log", NULL) / 1024 / 1024;
-  partVolaSizeMB = getPartitionSize("/run/log", NULL) / 1024 / 1024;
+  partPersSizeMB = getPartitionSize(QStringLiteral("/var/log"), NULL) / 1024 / 1024;
+  partVolaSizeMB = getPartitionSize(QStringLiteral("/run/log"), NULL) / 1024 / 1024;
   qDebug() << "Persistent partition size found to: " << partPersSizeMB << "MB";
   qDebug() << "Volatile partition size found to: " << partVolaSizeMB << "MB";
   
@@ -105,25 +106,37 @@ kcmsystemd::kcmsystemd(QWidget *parent, const QVariantList &args) : KCModule(par
   setupSignalSlots();
   
   // Subscribe to dbus signals from systemd system daemon and connect them to slots
-  callDbusMethod("Subscribe", sysdMgr);
-  systembus.connect(connSystemd, pathSysdMgr, ifaceMgr, "Reloading", this, SLOT(slotSystemSystemdReloading(bool)));
-  // systembus.connect(connSystemd, pathSysdMgr, ifaceMgr, "UnitNew", this, SLOT(slotUnitLoaded(QString, QDBusObjectPath)));
-  // systembus.connect(connSystemd,pathSysdMgr, ifaceMgr, "UnitRemoved", this, SLOT(slotUnitUnloaded(QString, QDBusObjectPath)));
-  systembus.connect(connSystemd, pathSysdMgr, ifaceMgr, "UnitFilesChanged", this, SLOT(slotSystemUnitsChanged()));
-  systembus.connect(connSystemd, "", ifaceDbusProp, "PropertiesChanged", this, SLOT(slotSystemUnitsChanged()));
+  callDbusMethod(QStringLiteral("Subscribe"), sysdMgr);
+  systembus.connect(connSystemd, pathSysdMgr, ifaceMgr,
+                    QStringLiteral("Reloading"), this, SLOT(slotSystemSystemdReloading(bool)));
+  // systembus.connect(connSystemd, pathSysdMgr, ifaceMgr,
+  //                QStringLiteral("UnitNew"), this, SLOT(slotUnitLoaded(QString, QDBusObjectPath)));
+  // systembus.connect(connSystemd,pathSysdMgr, ifaceMgr,
+  //                QStringLiteral("UnitRemoved"), this, SLOT(slotUnitUnloaded(QString, QDBusObjectPath)));
+  systembus.connect(connSystemd, pathSysdMgr, ifaceMgr,
+                    QStringLiteral("UnitFilesChanged"), this, SLOT(slotSystemUnitsChanged()));
+  systembus.connect(connSystemd, "", ifaceDbusProp,
+                    QStringLiteral("PropertiesChanged"), this, SLOT(slotSystemUnitsChanged()));
   // We need to use the JobRemoved signal, because stopping units does not emit PropertiesChanged signal
-  systembus.connect(connSystemd, pathSysdMgr, ifaceMgr, "JobRemoved", this, SLOT(slotSystemUnitsChanged()));
+  systembus.connect(connSystemd, pathSysdMgr, ifaceMgr,
+                    QStringLiteral("JobRemoved"), this, SLOT(slotSystemUnitsChanged()));
 
   // Subscribe to dbus signals from systemd user daemon and connect them to slots
   callDbusMethod("Subscribe", sysdMgr, user);
   QDBusConnection userbus = QDBusConnection::connectToBus(userBusPath, connSystemd);
-  userbus.connect(connSystemd, pathSysdMgr, ifaceMgr, "Reloading", this, SLOT(slotUserSystemdReloading(bool)));
-  userbus.connect(connSystemd, pathSysdMgr, ifaceMgr, "UnitFilesChanged", this, SLOT(slotUserUnitsChanged()));
-  userbus.connect(connSystemd, "", ifaceDbusProp, "PropertiesChanged", this, SLOT(slotUserUnitsChanged()));
-  userbus.connect(connSystemd, pathSysdMgr, ifaceMgr, "JobRemoved", this, SLOT(slotUserUnitsChanged()));
+  userbus.connect(connSystemd,pathSysdMgr, ifaceMgr,
+                  QStringLiteral("Reloading"), this, SLOT(slotUserSystemdReloading(bool)));
+  userbus.connect(connSystemd, pathSysdMgr, ifaceMgr,
+                  QStringLiteral("UnitFilesChanged"), this, SLOT(slotUserUnitsChanged()));
+  userbus.connect(connSystemd, "", ifaceDbusProp,
+                  QStringLiteral("PropertiesChanged"), this, SLOT(slotUserUnitsChanged()));
+  userbus.connect(connSystemd, pathSysdMgr, ifaceMgr,
+                  QStringLiteral("JobRemoved"), this, SLOT(slotUserUnitsChanged()));
 
   // logind
-  systembus.connect(connLogind, "", ifaceDbusProp, "PropertiesChanged", this, SLOT(slotLogindPropertiesChanged(QString, QVariantMap, QStringList)));
+  systembus.connect(connLogind, "", ifaceDbusProp,
+                    QStringLiteral("PropertiesChanged"), this,
+                    SLOT(slotLogindPropertiesChanged(QString, QVariantMap, QStringList)));
   
   // Get list of units
   slotRefreshUnitsList(true, sys);
