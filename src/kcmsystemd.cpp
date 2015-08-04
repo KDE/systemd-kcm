@@ -16,7 +16,8 @@
  *******************************************************************************/
 
 #include "kcmsystemd.h"
-#include <config.h>
+#include "fsutil.h"
+#include "config.h"
 
 #include <QMouseEvent>
 #include <QMenu>
@@ -29,8 +30,6 @@
 #include <KAuth>
 #include <KColorScheme>
 using namespace KAuth;
-
-#include <boost/filesystem.hpp>
 
 K_PLUGIN_FACTORY(kcmsystemdFactory, registerPlugin<kcmsystemd>();)
 
@@ -97,15 +96,8 @@ kcmsystemd::kcmsystemd(QWidget *parent, const QVariantList &args) : KCModule(par
       QFile(etcDir + "/coredump.conf").exists())
     listConfFiles << "coredump.conf";
   
-  // Use boost to find persistent partition size
-  boost::filesystem::path pp ("/var/log");
-  boost::filesystem::space_info logPpart = boost::filesystem::space(pp);
-  partPersSizeMB = logPpart.capacity / 1024 / 1024;
-  
-  // Use boost to find volatile partition size
-  boost::filesystem::path pv ("/run/log");
-  boost::filesystem::space_info logVpart = boost::filesystem::space(pv);
-  partVolaSizeMB = logVpart.capacity / 1024 / 1024;
+  partPersSizeMB = getPartitionSize("/var/log", NULL) / 1024 / 1024;
+  partVolaSizeMB = getPartitionSize("/run/log", NULL) / 1024 / 1024;
   qDebug() << "Persistent partition size found to: " << partPersSizeMB << "MB";
   qDebug() << "Volatile partition size found to: " << partVolaSizeMB << "MB";
   

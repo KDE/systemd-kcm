@@ -17,9 +17,8 @@
 
 #include <QDebug>
 
-#include <boost/filesystem.hpp>
-
 #include "confoption.h"
+#include "fsutil.h"
 
 // Initialize two static class members
 QStringList confOption::capabilities = QStringList() << "CAP_AUDIT_CONTROL" << "CAP_AUDIT_WRITE" << "CAP_BLOCK_SUSPEND" << "CAP_CHOWN"
@@ -374,15 +373,19 @@ int confOption::setValueFromFile(QString line)
         // This option supports both size units and %
         if (rxSize.cap(2) == "%") {
           value = rxSize.cap(1).toInt();
-        } else {
-          // Use boost to find volatile partition size
-          boost::filesystem::path pv ("/run");
-          boost::filesystem::space_info logVpart = boost::filesystem::space(pv);
-          qulonglong sizeMB = logVpart.capacity / 1024 / 1024;
 
-          // Convert the size to percentage. maxVal contains the volatile
-          // partitions size, which is half the RAM size.
-          value = 100 * value.toDouble() / (2 * sizeMB);
+        } else {
+
+          bool ok = false;
+          qulonglong sizeMB = getPartitionSize("/run", &ok) / 1024 / 1024;
+          if (!ok) {
+            qDebug() << rval << "cannot be interpreted correctly with an unknown partition size. Ignoring...";
+            return -1;
+          }
+
+          // Convert the size to percentage of physical RAM. The volatile
+          // partition size should be half the physical RAM.
+          value = 50 * value.toDouble() / sizeMB;
         }
       }
 

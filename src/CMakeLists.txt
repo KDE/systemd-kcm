@@ -5,9 +5,10 @@ set(kcmsystemd_SRCS kcmsystemd.cpp
                     sortfilterunitmodel.cpp
                     confoption.cpp
                     confmodel.cpp
-                    confdelegate.cpp)
+                    confdelegate.cpp
+                    fsutil.cpp)
 
-find_package(Boost 1.45.0 COMPONENTS filesystem system chrono REQUIRED)
+find_package(Boost 1.45.0 COMPONENTS system chrono REQUIRED)
 
 ki18n_wrap_ui(kcmsystemd_SRCS ../ui/kcmsystemd.ui)
 
@@ -16,6 +17,7 @@ target_link_libraries(kcm_systemd
                       KF5::I18n
                       KF5::ConfigWidgets
                       KF5::Service
+                      KF5::KIOCore
                       ${Boost_LIBRARIES}
                       ${JOURNALD_LIBRARIES})
 install(TARGETS kcm_systemd DESTINATION ${CMAKE_INSTALL_PLUGINDIR})

@@ -23,6 +23,7 @@ find_package(KF5 ${KF5_MIN_VERSION} REQUIRED COMPONENTS
              WidgetsAddons
              ConfigWidgets
              I18n
+             KIO
              Service
              Auth)
 
