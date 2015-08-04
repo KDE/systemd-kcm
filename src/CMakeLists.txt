@@ -6,6 +6,7 @@ set(kcmsystemd_SRCS kcmsystemd.cpp
                     confoption.cpp
                     confmodel.cpp
                     confdelegate.cpp
+                    confparms.cpp
                     fsutil.cpp)
 
 find_package(Boost 1.45.0 COMPONENTS system chrono REQUIRED)

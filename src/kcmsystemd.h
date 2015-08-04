@@ -80,7 +80,6 @@ class kcmsystemd : public KCModule
     void authServiceAction(QString, QString, QString, QString, QList<QVariant>);
     bool eventFilter(QObject *, QEvent*);
     void updateUnitCount();
-    void setupConfigParms();
     void displayMsgWidget(KMessageWidget::MessageType type, QString msg);
     QList<SystemdUnit> getUnitsFromDbus(dbusBus bus);
     QVariant getDbusProperty(QString prop, dbusIface ifaceName, QDBusObjectPath path = QDBusObjectPath("/org/freedesktop/systemd1"), dbusBus bus = sys);

@@ -1,6 +1,9 @@
 #ifndef SYSTEMDUNIT_H
 #define SYSTEMDUNIT_H
 
+#include <QString>
+#include <QDBusObjectPath>
+
 // struct for storing units retrieved from systemd via DBus
 struct SystemdUnit
 {
