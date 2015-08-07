@@ -20,8 +20,21 @@
 
 #include <QStringList>
 #include <QVariant>
+#include "kcm-systemd-features.h"
 
+#if defined(HAVE_CXX11_CHRONO)
+#include <ratio>
+#include <chrono>
+
+namespace ratio = std;
+namespace chrono = std::chrono;
+#else
+#include <boost/ratio.hpp>
 #include <boost/chrono.hpp>
+
+namespace ratio = boost;
+namespace chrono = boost::chrono;
+#endif
 
 enum settingType
 {
@@ -36,16 +49,16 @@ enum confFile
 class confOption {
   
   public:
-    typedef boost::chrono::duration<double, boost::ratio<1, 1000000000> > nanoseconds;
-    typedef boost::chrono::duration<double, boost::ratio<1, 1000000> > microseconds;
-    typedef boost::chrono::duration<double, boost::ratio<1, 1000> > milliseconds;
-    typedef boost::chrono::duration<double> seconds;
-    typedef boost::chrono::duration<double, boost::ratio<60, 1> > minutes;
-    typedef boost::chrono::duration<double, boost::ratio<3600, 1> > hours;
-    typedef boost::chrono::duration<double, boost::ratio<86400, 1> > days;
-    typedef boost::chrono::duration<double, boost::ratio<604800, 1> > weeks;
-    typedef boost::chrono::duration<double, boost::ratio<2629800, 1> > months; // define a month as 30.4375days
-    typedef boost::chrono::duration<double, boost::ratio<29030400, 1> > years;
+    typedef chrono::duration<double, ratio::nano > nanoseconds;
+    typedef chrono::duration<double, ratio::micro > microseconds;
+    typedef chrono::duration<double, ratio::milli > milliseconds;
+    typedef chrono::duration<double> seconds;
+    typedef chrono::duration<double, ratio::ratio<60, 1> > minutes;
+    typedef chrono::duration<double, ratio::ratio<3600, 1> > hours;
+    typedef chrono::duration<double, ratio::ratio<86400, 1> > days;
+    typedef chrono::duration<double, ratio::ratio<604800, 1> > weeks;
+    typedef chrono::duration<double, ratio::ratio<2629800, 1> > months; // define a month as 30.4375days
+    typedef chrono::duration<double, ratio::ratio<29030400, 1> > years;
     typedef enum timeUnit { ns, us, ms, s, min, h, d, w, month, year } timeUnit;
     
     confFile file;

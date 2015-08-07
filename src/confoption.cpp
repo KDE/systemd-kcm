@@ -542,74 +542,74 @@ QVariant confOption::convertTimeUnit(double value, timeUnit oldTime, timeUnit ne
   if (oldTime == ns)
   {
     nanoseconds val(value);
-    tmpSecs = boost::chrono::duration_cast<seconds>(val);
+    tmpSecs = chrono::duration_cast<seconds>(val);
   }
   else if (oldTime == us)
   {
     microseconds val(value);
-    tmpSecs = boost::chrono::duration_cast<seconds>(val);
+    tmpSecs = chrono::duration_cast<seconds>(val);
   }
   else if (oldTime == ms)
   {
     milliseconds val(value);
-    tmpSecs = boost::chrono::duration_cast<seconds>(val);
+    tmpSecs = chrono::duration_cast<seconds>(val);
   }
   else if (oldTime == s)
   {
     seconds val(value);
-    tmpSecs = boost::chrono::duration_cast<seconds>(val);
+    tmpSecs = chrono::duration_cast<seconds>(val);
   }
   else if (oldTime == min)
   {
     minutes val(value);
-    tmpSecs = boost::chrono::duration_cast<seconds>(val);
+    tmpSecs = chrono::duration_cast<seconds>(val);
   }
   else if (oldTime == h)
   {
     hours val(value);
-    tmpSecs = boost::chrono::duration_cast<seconds>(val);
+    tmpSecs = chrono::duration_cast<seconds>(val);
   }
   else if (oldTime == d)
   {
     days val(value);
-    tmpSecs = boost::chrono::duration_cast<seconds>(val);
+    tmpSecs = chrono::duration_cast<seconds>(val);
   }
   else if (oldTime == w)
   {
     weeks val(value);
-    tmpSecs = boost::chrono::duration_cast<seconds>(val);
+    tmpSecs = chrono::duration_cast<seconds>(val);
   }
   else if (oldTime == month)
   {
     months val(value);
-    tmpSecs = boost::chrono::duration_cast<seconds>(val);
+    tmpSecs = chrono::duration_cast<seconds>(val);
   }
   else if (oldTime == year)
   {
     years val(value);
-    tmpSecs = boost::chrono::duration_cast<seconds>(val);
+    tmpSecs = chrono::duration_cast<seconds>(val);
   }
     
   if (newTime == ns)
-    convertedVal = boost::chrono::duration_cast<nanoseconds>(tmpSecs).count();
+    convertedVal = chrono::duration_cast<nanoseconds>(tmpSecs).count();
   else if (newTime == us)
-    convertedVal = boost::chrono::duration_cast<microseconds>(tmpSecs).count();
+    convertedVal = chrono::duration_cast<microseconds>(tmpSecs).count();
   else if (newTime == ms)
-    convertedVal = boost::chrono::duration_cast<milliseconds>(tmpSecs).count();
+    convertedVal = chrono::duration_cast<milliseconds>(tmpSecs).count();
   else if (newTime == s)
-    convertedVal = boost::chrono::duration_cast<seconds>(tmpSecs).count();
+    convertedVal = chrono::duration_cast<seconds>(tmpSecs).count();
   else if (newTime == min)
-    convertedVal = boost::chrono::duration_cast<minutes>(tmpSecs).count();
+    convertedVal = chrono::duration_cast<minutes>(tmpSecs).count();
   else if (newTime == h)
-    convertedVal = boost::chrono::duration_cast<hours>(tmpSecs).count();
+    convertedVal = chrono::duration_cast<hours>(tmpSecs).count();
   else if (newTime == d)
-    convertedVal = boost::chrono::duration_cast<days>(tmpSecs).count();
+    convertedVal = chrono::duration_cast<days>(tmpSecs).count();
   else if (newTime == w)
-    convertedVal = boost::chrono::duration_cast<weeks>(tmpSecs).count();
+    convertedVal = chrono::duration_cast<weeks>(tmpSecs).count();
   else if (newTime == month)
-    convertedVal = boost::chrono::duration_cast<months>(tmpSecs).count();
+    convertedVal = chrono::duration_cast<months>(tmpSecs).count();
   else if (newTime == year)
-    convertedVal = boost::chrono::duration_cast<years>(tmpSecs).count();
+    convertedVal = chrono::duration_cast<years>(tmpSecs).count();
 
   return convertedVal;
 }

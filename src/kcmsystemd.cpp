@@ -20,6 +20,8 @@
 #include "fsutil.h"
 #include "config.h"
 
+#include <unistd.h>
+
 #include <QMouseEvent>
 #include <QMenu>
 
