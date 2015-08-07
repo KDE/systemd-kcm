@@ -18,13 +18,12 @@ find_package(Qt5 ${QT_MIN_VERSION} CONFIG REQUIRED COMPONENTS
              DBus)
 
 find_package(KF5 ${KF5_MIN_VERSION} REQUIRED COMPONENTS
-             CoreAddons
-             WidgetsAddons
+             Auth
              ConfigWidgets
+             CoreAddons
              I18n
              KIO
-             Service
-             Auth)
+             WidgetsAddons)
 
 include(KDEInstallDirs)
 include(KDECompilerSettings)

@@ -27,10 +27,12 @@ ki18n_wrap_ui(kcmsystemd_SRCS ../ui/kcmsystemd.ui)
 
 add_library(kcm_systemd MODULE ${kcmsystemd_SRCS})
 target_link_libraries(kcm_systemd
-                      KF5::I18n
+                      KF5::Auth
                       KF5::ConfigWidgets
-                      KF5::Service
+                      KF5::CoreAddons
+                      KF5::I18n
                       KF5::KIOCore
+                      KF5::WidgetsAddons
                       ${Boost_LIBRARIES}
                       ${JOURNALD_LIBRARIES})
 install(TARGETS kcm_systemd DESTINATION ${CMAKE_INSTALL_PLUGINDIR})
