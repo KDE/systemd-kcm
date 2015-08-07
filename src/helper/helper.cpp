@@ -47,6 +47,26 @@ ActionReply Helper::save(const QVariantMap& args)
   return reply;
 }
 
+ActionReply Helper::saveunitfile(const QVariantMap& args)
+{
+  ActionReply reply;
+
+  QFile file(args["file"].toString());
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+    reply = ActionReply::HelperErrorReply();
+    reply.addData("errorDescription", file.errorString());
+    // reply.setErrorCode(file.error());
+    //reply.addData("filename", iter.key());
+    return reply;
+  }
+  QTextStream stream(&file);
+  stream << args["contents"].toString();
+  file.close();
+
+  // return a reply
+  return reply;
+}
+
 ActionReply Helper::dbusaction(const QVariantMap& args)
 {
   ActionReply reply;

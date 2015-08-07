@@ -65,6 +65,12 @@ Description[zh_TW]=儲存 systemd 設定檔需要系統管理員權限
 Policy=auth_admin
 Persistence=session
 
+[org.kde.kcontrol.kcmsystemd.saveunitfile]
+Name=Save a systemd unit file
+Description=Administrator authorization is required to save the systemd unit file
+Policy=auth_admin
+Persistence=session
+
 [org.kde.kcontrol.kcmsystemd.dbusaction]
 Name=Manipulate systemd over D-Bus
 Name[bg]=Управление на systemd през D-Bus

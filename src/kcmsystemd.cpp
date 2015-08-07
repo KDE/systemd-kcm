@@ -24,11 +24,11 @@
 
 #include <QMouseEvent>
 #include <QMenu>
+#include <QPlainTextEdit>
 
 #include <KAboutData>
 #include <KPluginFactory>
 #include <KMessageBox>
-#include <KMimeTypeTrader>
 #include <KAuth>
 #include <KColorScheme>
 using namespace KAuth;
@@ -75,11 +75,6 @@ kcmsystemd::kcmsystemd(QWidget *parent, const QVariantList &args) : KCModule(par
     ui.tabWidget->setTabEnabled(1,false);
     enableUserUnits = false;
   }
-
-  // Use kf5-config to get kde prefix
-  kdeConfig = new QProcess(this);
-  connect(kdeConfig, SIGNAL(readyReadStandardOutput()), this, SLOT(slotKdeConfig()));
-  kdeConfig->start(QStringLiteral("kf5-config"), QStringList() << QStringLiteral("--prefix"));
   
   // Find the configuration directory
   if (QDir(QStringLiteral("/etc/systemd")).exists()) {
@@ -503,12 +498,6 @@ void kcmsystemd::slotConfChanged(const QModelIndex &, const QModelIndex &)
 {
   // qDebug() << "dataChanged emitted";
   emit changed(true);
-}
-
-void kcmsystemd::slotKdeConfig()
-{
-  // Set a QString containing the kde prefix
-  kdePrefix = QString::fromLatin1(kdeConfig->readAllStandardOutput()).trimmed();
 }
 
 void kcmsystemd::slotChkShowUnits(int state)
@@ -1006,32 +995,7 @@ void kcmsystemd::slotUnitContextMenu(const QPoint &pos)
    
   if (a == edit)
   {
-    // Find the application associated with text files
-    KMimeTypeTrader* trader = KMimeTypeTrader::self();
-    const KService::Ptr service = trader->preferredService("text/plain");
-
-    // Open the unit file using the found application
-    QString app;
-    QStringList args;
-    if (frpath.startsWith(getenv("HOME")))
-    {
-      // Unit file is in $HOME, no authentication required
-      app = service->exec().section(' ', 0, 0);
-      args << frpath;
-    }
-    else
-    {
-      // Unit file is outside $HOME, use kdesu for authentication
-      app = "kdesu";
-      args << "-t" << "--" << service->exec().section(' ', 0, 0) << frpath;
-    }
-    QProcess editor (this);
-    bool r = editor.startDetached(app, args);
-    if (!r && app == "kdesu")
-      r = editor.startDetached(kdePrefix + "/lib/libexec/kdesu", args);
-    if (!r)
-      displayMsgWidget(KMessageWidget::Error,
-                       i18n("Failed to open unit file."));
+    editUnitFile(frpath);
     return;
   }
 
@@ -1344,6 +1308,59 @@ void kcmsystemd::slotUpdateTimers()
     else
       passed = QString::number(passedSecs) + " s";
     timerModel->setData(timerModel->index(row, 4), passed);
+  }
+}
+
+void kcmsystemd::editUnitFile(const QString &filename)
+{
+  QDialog *dlgEditor = new QDialog(this);
+  dlgEditor->setWindowTitle(i18n("Editing %1", filename.section('/', -1)));
+
+  QPlainTextEdit *textEdit = new QPlainTextEdit(dlgEditor);
+  textEdit->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+
+  QDialogButtonBox *buttonBox = new QDialogButtonBox(QDialogButtonBox::Save |
+                                                     QDialogButtonBox::Cancel,
+                                                     dlgEditor);
+  connect(buttonBox, SIGNAL(accepted()), dlgEditor, SLOT(accept()));
+  connect(buttonBox, SIGNAL(rejected()), dlgEditor, SLOT(reject()));
+
+  QVBoxLayout *vlayout = new QVBoxLayout(dlgEditor);
+  vlayout->addWidget(textEdit);
+  vlayout->addWidget(buttonBox);
+
+  // Read contents of unit file.
+  QFile f(filename);
+  if (!f.open(QFile::ReadOnly | QFile::Text)) {
+    displayMsgWidget(KMessageWidget::Error,
+                     i18n("Failed to open the unit file:\n%1", filename));
+    return;
+  }
+  QTextStream in(&f);
+  textEdit->setPlainText(in.readAll());
+  textEdit->setMinimumSize(500,300);
+
+  dlgEditor->exec();
+  if (dlgEditor->result() == QDialog::Accepted) {
+
+    // Declare a QVariantMap with arguments for the helper.
+    QVariantMap helperArgs;
+    helperArgs["file"] = filename;
+    helperArgs["contents"] = textEdit->toPlainText();
+
+    // Create the action.
+    Action action("org.kde.kcontrol.kcmsystemd.saveunitfile");
+    action.setHelperId("org.kde.kcontrol.kcmsystemd");
+    action.setArguments(helperArgs);
+
+    ExecuteJob *job = action.execute();
+    if (!job->exec()) {
+      displayMsgWidget(KMessageWidget::Error,
+                       i18n("Unable to authenticate/execute the action: %1", job->error()));
+    } else {
+      displayMsgWidget(KMessageWidget::Positive,
+                       i18n("Unit file successfully written."));
+    }
   }
 }
 
