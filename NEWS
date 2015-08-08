@@ -1,5 +1,12 @@
 NEWS file for systemd-kcm
 
+1.2.1 (2015-08-08)
+---
+- A simple integrated editor is used for editing unit files. Saving is done through a KAuth action for proper authentication. This provides better security than the old method of calling an external editor using kdesu.
+- Boost is only depended upon when using non-C++11-capable compilers (thanks to Johan Ouwerkerk).
+- Use drkonqi for handling crashes (requires KF5Crash framework).
+- Several translations were added.
+
 1.2.0 (2015-07-02)
 ---
 - Kcmsystemd is now hosted on KDE infrastructure and name was changed to systemd-kcm.
