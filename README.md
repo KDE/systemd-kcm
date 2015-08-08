@@ -47,6 +47,9 @@ Contributions from:
 Website:
 https://projects.kde.org/projects/playground/sysadmin/systemd-kcm/
 
+Source packages can be downloaded at:
+http://download.kde.org/stable/systemd-kcm/
+
 Please report bugs and feature requests at:
 https://bugs.kde.org/
 
