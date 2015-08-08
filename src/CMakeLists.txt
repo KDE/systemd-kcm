@@ -30,6 +30,7 @@ target_link_libraries(kcm_systemd
                       KF5::Auth
                       KF5::ConfigWidgets
                       KF5::CoreAddons
+                      KF5::Crash
                       KF5::I18n
                       KF5::KIOCore
                       KF5::WidgetsAddons

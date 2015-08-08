@@ -21,6 +21,7 @@ find_package(KF5 ${KF5_MIN_VERSION} REQUIRED COMPONENTS
              Auth
              ConfigWidgets
              CoreAddons
+             Crash
              I18n
              KIO
              WidgetsAddons)

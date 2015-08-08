@@ -22,6 +22,7 @@ Dependencies
 *   KF5Auth
 *   KF5ConfigWidgets
 *   KF5CoreAddons
+*   KF5Crash
 *   KF5I18n
 *   KF5KIO
 *   KF5WidgetsAddons
