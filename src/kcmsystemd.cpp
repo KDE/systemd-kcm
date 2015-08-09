@@ -717,15 +717,19 @@ void kcmsystemd::slotRefreshTimerList()
   // Iterate through system unitlist and add timers to the model
   foreach (const SystemdUnit &unit, unitslist)
   {
-    if (unit.id.endsWith(".timer") && unit.load_state != "unloaded")
+    if (unit.id.endsWith(QLatin1String(".timer")) &&
+        unit.load_state != QLatin1String("unloaded")) {
       timerModel->appendRow(buildTimerListRow(unit, unitslist, sys));
+    }
   }
 
   // Iterate through user unitlist and add timers to the model
   foreach (const SystemdUnit &unit, userUnitslist)
   {
-    if (unit.id.endsWith(".timer") && unit.load_state != "unloaded")
+    if (unit.id.endsWith(QLatin1String(".timer")) &&
+        unit.load_state != QLatin1String("unloaded")) {
       timerModel->appendRow(buildTimerListRow(unit, userUnitslist, user));
+    }
   }
 
   // Update the left and passed columns
@@ -774,7 +778,7 @@ QList<QStandardItem *> kcmsystemd::buildTimerListRow(const SystemdUnit &unit, co
     // Convert the monotonic system clock to microseconds
     qlonglong now_mono_usec = ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
 
-    // And substract it
+    // And subtract it.
     time = time.addMSecs(-now_mono_usec/1000);
   }
 
