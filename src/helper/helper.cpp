@@ -30,7 +30,7 @@ ActionReply Helper::save(const QVariantMap& args)
   for(QVariantMap::const_iterator iter = files.constBegin(); iter != files.constEnd(); ++iter)
   {
     QString contents = iter.value().toString();
-    QFile file(args["etcDir"].toString() + "/" + iter.key());
+    QFile file(args["etcDir"].toString() + '/' + iter.key());
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
       reply = ActionReply::HelperErrorReply();
       reply.addData("errorDescription", file.errorString());

@@ -262,7 +262,7 @@ void kcmsystemd::load()
 
 void kcmsystemd::readConfFile(int fileindex)
 {
-  QFile file (etcDir + "/" + listConfFiles.at(fileindex));
+  QFile file (etcDir + '/' + listConfFiles.at(fileindex));
   if (file.open(QIODevice::ReadOnly | QIODevice::Text))
   {
     QTextStream in(&file);
@@ -273,18 +273,18 @@ void kcmsystemd::readConfFile(int fileindex)
       if (!line.startsWith('#') && !line.startsWith('[') && !line.isEmpty())
       {
         // qDebug() << "line: " << line;
-        int index = confOptList.indexOf(confOption(QString(line.section("=",0,0).trimmed() + "_" + QString::number(fileindex))));
+        int index = confOptList.indexOf(confOption(QString(line.section('=',0,0).trimmed() + '_' + QString::number(fileindex))));
         if (index >= 0)
         {
           if (confOptList[index].setValueFromFile(line) == -1)
             displayMsgWidget(KMessageWidget::Warning,
-                             i18n("\"%1\" is not a valid value for %2. Using default value for this parameter.", line.section("=",1).trimmed(), confOptList.at(index).realName));
+                             i18n("\"%1\" is not a valid value for %2. Using default value for this parameter.", line.section('=',1).trimmed(), confOptList.at(index).realName));
         }
       }
       line = in.readLine();
     } // read lines until empty
 
-    qDebug() << QString("Successfully read " + etcDir + "/" + listConfFiles.at(fileindex));
+    qDebug() << QString("Successfully read " + etcDir + '/' + listConfFiles.at(fileindex));
   } // if file open
   else
     displayMsgWidget(KMessageWidget::Warning,
@@ -555,14 +555,14 @@ void kcmsystemd::slotCmbUnitTypes(int index)
 
   if (QObject::sender()->objectName() == "cmbUnitTypes")
   {
-    systemUnitFilterModel->addFilterRegExp(unitType, "(" + unitTypeSufx.at(index) + ")$");
+    systemUnitFilterModel->addFilterRegExp(unitType, '(' + unitTypeSufx.at(index) + ")$");
     systemUnitFilterModel->invalidate();
     ui.tblUnits->sortByColumn(ui.tblUnits->horizontalHeader()->sortIndicatorSection(),
                               ui.tblUnits->horizontalHeader()->sortIndicatorOrder());
   }
   else if (QObject::sender()->objectName() == "cmbUserUnitTypes")
   {
-    userUnitFilterModel->addFilterRegExp(unitType, "(" + unitTypeSufx.at(index) + ")$");
+    userUnitFilterModel->addFilterRegExp(unitType, '(' + unitTypeSufx.at(index) + ")$");
     userUnitFilterModel->invalidate();
     ui.tblUserUnits->sortByColumn(ui.tblUserUnits->horizontalHeader()->sortIndicatorSection(),
                                   ui.tblUserUnits->horizontalHeader()->sortIndicatorOrder());
@@ -1158,8 +1158,8 @@ bool kcmsystemd::eventFilter(QObject *obj, QEvent* event)
           if (!tty.isEmpty())
             path = tty;
           else if (!remoteHost.isEmpty())
-            path = getDbusProperty("Name", logdSession, spath).toString() + "@" + remoteHost;
-          toolTipText.append(" (" + path + ")");
+            path = getDbusProperty("Name", logdSession, spath).toString() + '@' + remoteHost;
+          toolTipText.append(" (" + path + ')');
         }
         toolTipText.append(i18n("<br><b>Class:</b> %1", getDbusProperty("Class", logdSession, spath).toString()));
         toolTipText.append(i18n("<br><b>State:</b> %1", getDbusProperty("State", logdSession, spath).toString()));
@@ -1429,8 +1429,8 @@ QList<SystemdUnit> kcmsystemd::getUnitsFromDbus(dbusBus bus)
           SystemdUnit unit;
           unit.id = unitfileslist.at(i).name.section('/',-1);
           unit.load_state = "unloaded";
-          unit.active_state = "-";
-          unit.sub_state = "-";
+          unit.active_state = '-';
+          unit.sub_state = '-';
           unit.unit_file = unitfileslist.at(i).name;
           unit.unit_file_status= unitfileslist.at(i).status;
           list.append(unit);

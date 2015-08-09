@@ -266,7 +266,7 @@ QStringList UnitModel::getLastJrnlEntries(QString unit) const
       r = sd_journal_get_data(journal, "PRIORITY", &data, &length);
       if (r == 0)
       {
-        int prio = QString::fromUtf8((const char *)data, length).section("=",1).toInt();
+        int prio = QString::fromUtf8((const char *)data, length).section('=',1).toInt();
         if (prio <= 3)
           line.append("<span style='color:tomato;'>");
         else if (prio == 4)
@@ -279,7 +279,7 @@ QStringList UnitModel::getLastJrnlEntries(QString unit) const
       r = sd_journal_get_data(journal, "MESSAGE", &data, &length);
       if (r == 0)
       {
-        line.append(": " + QString::fromUtf8((const char *)data, length).section("=",1) + "</span>");
+        line.append(": " + QString::fromUtf8((const char *)data, length).section('=',1) + "</span>");
         if (line.length() > 195)
           line = QString(line.left(195) + "..." + "</span>");
         reply << line;

@@ -53,7 +53,7 @@ confOption::confOption(QVariantMap map)
 {
   file = static_cast<confFile>(map["file"].toInt());
   realName = map["name"].toString();
-  uniqueName = QString(map["name"].toString() + "_" + QString::number(file));
+  uniqueName = QString(map["name"].toString() + '_' + QString::number(file));
   type = static_cast<settingType>(map["type"].toInt());
   defVal = map["defVal"];
   possibleVals = map["possibleVals"].toStringList();
@@ -97,7 +97,7 @@ int confOption::setValueFromFile(QString line)
 {
   // Used to set values in confOptions from a file line
   
-  QString rval = line.section("=",1).trimmed();
+  QString rval = line.section('=',1).trimmed();
 
   qDebug() << "setting " << realName << " to " << rval << " (from file)";
     
@@ -159,7 +159,7 @@ int confOption::setValueFromFile(QString line)
   {
     QVariantMap map;
 
-    QStringList readList = rval.split(" ", QString::SkipEmptyParts);
+    QStringList readList = rval.split(' ', QString::SkipEmptyParts);
     for (int i = 0; i < readList.size(); ++i)
     {
       if (!possibleVals.contains(readList.at(i)))
@@ -433,7 +433,7 @@ QString confOption::getValueAsString() const
       if (iter.value() == true && mapAsString.isEmpty())
         mapAsString = QString(iter.key());
       else if (iter.value() == true)
-        mapAsString = QString(mapAsString + " " + iter.key());
+        mapAsString = QString(mapAsString + ' ' + iter.key());
     }
     return mapAsString;
   }
@@ -447,7 +447,7 @@ QString confOption::getLineForFile() const
   if (value == defVal)
   {
     // value is set to default
-    return QString("#" + realName + "=\n");
+    return QString('#' + realName + "=\n");
   }
   else
   {
@@ -455,9 +455,9 @@ QString confOption::getLineForFile() const
     if (type == BOOL)
     {
       if (value.toBool())
-        return QString(realName + "=" + "yes\n");
+        return QString(realName + '=' + "yes\n");
       else
-        return QString(realName + "=" + "no\n");
+        return QString(realName + '=' + "no\n");
     }
 
     else if (type == MULTILIST)
@@ -469,47 +469,47 @@ QString confOption::getLineForFile() const
         for(QVariantMap::const_iterator iter = map.constBegin(); iter != map.constEnd(); ++iter)
         {
           if (iter.value().toBool())
-            ret = QString(ret + iter.key() + " ");
+            ret = QString(ret + iter.key() + ' ');
         }
-        return QString(realName + "=" + ret.trimmed() + "\n");
+        return QString(realName + '=' + ret.trimmed() + "\n");
       }
     }
 
     else if (type == TIME)
     {
       if (value.toULongLong() == 0)
-        return QString(realName + "=" + value.toString() + "\n");
+        return QString(realName + '=' + value.toString() + "\n");
       else
       {
         if (defUnit == ns)
-          return QString(realName + "=" + value.toString() + "ns\n");
+          return QString(realName + '=' + value.toString() + "ns\n");
         else if (defUnit == us)
-          return QString(realName + "=" + value.toString() + "us\n");
+          return QString(realName + '=' + value.toString() + "us\n");
         else if (defUnit == ms)
-          return QString(realName + "=" + value.toString() + "ms\n");
+          return QString(realName + '=' + value.toString() + "ms\n");
         else if (defUnit == s)
-          return QString(realName + "=" + value.toString() + "s\n");
+          return QString(realName + '=' + value.toString() + "s\n");
         else if (defUnit == min)
-          return QString(realName + "=" + value.toString() + "min\n");
+          return QString(realName + '=' + value.toString() + "min\n");
         else if (defUnit == h)
-          return QString(realName + "=" + value.toString() + "h\n");
+          return QString(realName + '=' + value.toString() + "h\n");
         else if (defUnit == d)
-          return QString(realName + "=" + value.toString() + "d\n");
+          return QString(realName + '=' + value.toString() + "d\n");
         else if (defUnit == w)
-          return QString(realName + "=" + value.toString() + "w\n");
+          return QString(realName + '=' + value.toString() + "w\n");
         else if (defUnit == month)
-          return QString(realName + "=" + value.toString() + "month\n");
+          return QString(realName + '=' + value.toString() + "month\n");
         else if (defUnit == year)
-          return QString(realName + "=" + value.toString() + "year\n");
+          return QString(realName + '=' + value.toString() + "year\n");
        }
     }
 
     else if (type == SIZE)
     {
-      return QString(realName + "=" + value.toString() + "M\n");
+      return QString(realName + '=' + value.toString() + "M\n");
     }
 
-    return QString(realName + "=" + value.toString() + "\n");
+    return QString(realName + '=' + value.toString() + "\n");
   } // not default
 }
 
