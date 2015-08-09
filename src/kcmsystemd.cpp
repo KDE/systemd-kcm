@@ -1317,7 +1317,9 @@ void kcmsystemd::slotUpdateTimers()
 
 void kcmsystemd::editUnitFile(const QString &filename)
 {
-  QDialog *dlgEditor = new QDialog(this);
+  // Using a QPointer is safer for modal dialogs.
+  // See: https://blogs.kde.org/node/3919
+  QPointer<QDialog> dlgEditor = new QDialog(this);
   dlgEditor->setWindowTitle(i18n("Editing %1", filename.section('/', -1)));
 
   QPlainTextEdit *textEdit = new QPlainTextEdit(dlgEditor);
@@ -1344,8 +1346,7 @@ void kcmsystemd::editUnitFile(const QString &filename)
   textEdit->setPlainText(in.readAll());
   textEdit->setMinimumSize(500,300);
 
-  dlgEditor->exec();
-  if (dlgEditor->result() == QDialog::Accepted) {
+  if (dlgEditor->exec() == QDialog::Accepted) {
 
     // Declare a QVariantMap with arguments for the helper.
     QVariantMap helperArgs;
@@ -1366,6 +1367,7 @@ void kcmsystemd::editUnitFile(const QString &filename)
                        i18n("Unit file successfully written."));
     }
   }
+  delete dlgEditor;
 }
 
 QList<SystemdUnit> kcmsystemd::getUnitsFromDbus(dbusBus bus)
