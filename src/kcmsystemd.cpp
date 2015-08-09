@@ -133,7 +133,7 @@ kcmsystemd::kcmsystemd(QWidget *parent, const QVariantList &args) : KCModule(par
   // logind
   systembus.connect(connLogind, "", ifaceDbusProp,
                     QStringLiteral("PropertiesChanged"), this,
-                    SLOT(slotLogindPropertiesChanged(QString, QVariantMap, QStringList)));
+                    SLOT(slotLogindPropertiesChanged(QString,QVariantMap,QStringList)));
   
   // Get list of units
   slotRefreshUnitsList(true, sys);
@@ -257,7 +257,7 @@ void kcmsystemd::load()
   }
 
   // Connect signals to slots, which need to be after initializeInterface()
-  connect(confModel, SIGNAL(dataChanged(const QModelIndex &, const QModelIndex &)), this, SLOT(slotConfChanged(const QModelIndex &, const QModelIndex &)));
+  connect(confModel, SIGNAL(dataChanged(QModelIndex,QModelIndex)), this, SLOT(slotConfChanged(QModelIndex,QModelIndex)));
 }
 
 void kcmsystemd::readConfFile(int fileindex)
