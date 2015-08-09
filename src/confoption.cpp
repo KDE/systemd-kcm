@@ -74,10 +74,11 @@ confOption::confOption(QVariantMap map)
 
   if (type == MULTILIST)
   {
-    // Create a map where all possibleVals are set to false
+    // Create a map where all possibleVals are set to false.
     QVariantMap defMap;
-    foreach (QString s, possibleVals)
+    foreach (const QString &s, possibleVals) {
       defMap[s] = false;
+    }
     defVal = defMap;
   }
   if (type == RESLIMIT)

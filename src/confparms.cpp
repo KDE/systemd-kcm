@@ -303,7 +303,7 @@ QList<confOption> getConfigParms(const int systemdVersion)
                                         << "DefaultLimitMEMLOCK" << "DefaultLimitLOCKS" << "DefaultLimitSIGPENDING"
                                         << "DefaultLimitMSGQUEUE" << "DefaultLimitNICE" << "DefaultLimitRTPRIO"
                                         << "DefaultLimitRTTIME";
-  foreach (QString s, resLimits)
+  foreach (const QString &s, resLimits)
   {
     map.clear();
     map["name"] = s;
@@ -502,7 +502,7 @@ QList<confOption> getConfigParms(const int systemdVersion)
   if (systemdVersion >= 212)
     listLogLevel << "MaxLevelWall";
 
-  foreach (QString s, listLogLevel)
+  foreach (const QString &s, listLogLevel)
   {
     map.clear();
     map["name"] = s;
@@ -579,7 +579,7 @@ QList<confOption> getConfigParms(const int systemdVersion)
                                            << "HandleHibernateKey" << "HandleLidSwitch";
   if (systemdVersion >= 217)
     listPower << "HandleLidSwitchDocked";
-  foreach (QString s, listPower)
+  foreach (const QString &s, listPower)
   {
     map.clear();
     map["name"] = s;
