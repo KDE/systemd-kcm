@@ -27,7 +27,7 @@ class ConfModel : public QAbstractTableModel
   Q_OBJECT
   
 public:
-  ConfModel(QObject *parent = 0, QList<confOption> *confOptList = 0);
+  explicit ConfModel(QObject *parent = 0, QList<confOption> *confOptList = 0);
   int rowCount(const QModelIndex & parent = QModelIndex()) const;
   int columnCount(const QModelIndex & parent = QModelIndex()) const;
   QVariant headerData(int section, Qt::Orientation orientation, int role) const;

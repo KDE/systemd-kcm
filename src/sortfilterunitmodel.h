@@ -30,7 +30,7 @@ class SortFilterUnitModel : public QSortFilterProxyModel
   Q_OBJECT
 
 public:
-  SortFilterUnitModel(QObject *parent = 0);
+  explicit SortFilterUnitModel(QObject *parent = 0);
   void initFilterMap(const QMap<filterType, QString> &map);
   void addFilterRegExp(filterType type, const QString &pattern);
 

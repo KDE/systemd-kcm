@@ -70,8 +70,8 @@ class confOption {
     
     confOption();
     // Used for comparing
-    confOption(QString newName);
-    confOption(QVariantMap);
+    explicit confOption(QString newName);
+    explicit confOption(QVariantMap);
     
     bool operator==(const confOption& other) const;
     int setValue(QVariant);

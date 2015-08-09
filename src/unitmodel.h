@@ -27,8 +27,8 @@ class UnitModel : public QAbstractTableModel
   Q_OBJECT
   
 public:
-  UnitModel(QObject *parent = 0);
-  UnitModel(QObject *parent = 0, const QList<SystemdUnit> *list = NULL, QString userBusPath = "");
+  explicit UnitModel(QObject *parent = 0);
+  explicit UnitModel(QObject *parent = 0, const QList<SystemdUnit> *list = NULL, QString userBusPath = "");
   int rowCount(const QModelIndex & parent = QModelIndex()) const;
   int columnCount(const QModelIndex & parent = QModelIndex()) const;
   QVariant headerData(int section, Qt::Orientation orientation, int role) const;

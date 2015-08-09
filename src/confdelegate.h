@@ -27,7 +27,7 @@ class ConfDelegate : public QStyledItemDelegate
   Q_OBJECT
   
 public:
-  ConfDelegate(QObject *parent = 0, const QList<confOption> *confOptList = 0);
+  explicit ConfDelegate(QObject *parent = 0, const QList<confOption> *confOptList = 0);
 
   QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem &option,
                         const QModelIndex &index) const Q_DECL_OVERRIDE;
