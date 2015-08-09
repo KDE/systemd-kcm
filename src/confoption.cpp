@@ -15,10 +15,10 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.              *
  *******************************************************************************/
 
-#include <QDebug>
-
 #include "confoption.h"
 #include "fsutil.h"
+
+#include <QDebug>
 
 // Initialize two static class members
 QStringList confOption::capabilities = QStringList() << "CAP_AUDIT_CONTROL" << "CAP_AUDIT_WRITE" << "CAP_BLOCK_SUSPEND" << "CAP_CHOWN"

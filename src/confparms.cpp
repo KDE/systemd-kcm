@@ -15,12 +15,12 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.              *
  *******************************************************************************/
 
+#include "confparms.h"
+#include "fsutil.h"
+
 #include <QThread>
 
 #include <KLocalizedString>
-
-#include "confparms.h"
-#include "fsutil.h"
 
 QList<confOption> getConfigParms(const int systemdVersion)
 {

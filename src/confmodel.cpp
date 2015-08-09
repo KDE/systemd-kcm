@@ -15,11 +15,11 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.              *
  *******************************************************************************/
 
+#include "confmodel.h"
+
 #include <QFont>
 
 #include <KLocalizedString>
-
-#include "confmodel.h"
 
 ConfModel::ConfModel(QObject *parent, QList<confOption> *confOptList)
  : QAbstractTableModel(parent)

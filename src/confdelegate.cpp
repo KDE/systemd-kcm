@@ -15,13 +15,13 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.              *
  *******************************************************************************/
 
+#include "confdelegate.h"
+
 #include <QDebug>
 #include <QSpinBox>
 #include <QComboBox>
 #include <QLineEdit>
 #include <QStandardItemModel>
-
-#include "confdelegate.h"
 
 ConfDelegate::ConfDelegate(QObject *parent, const QList<confOption> *confOptList)
     : QStyledItemDelegate(parent)

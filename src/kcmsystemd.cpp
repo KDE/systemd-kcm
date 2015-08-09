@@ -15,10 +15,10 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.              *
  *******************************************************************************/
 
+#include "config.h"
 #include "kcmsystemd.h"
 #include "confparms.h"
 #include "fsutil.h"
-#include "config.h"
 
 #include <unistd.h>
 

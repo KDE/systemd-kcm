@@ -15,14 +15,14 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.              *
  *******************************************************************************/
 
+#include "unitmodel.h"
+
 #include <QtDBus/QtDBus>
 #include <QColor>
 #include <KLocalizedString>
 #include <KColorScheme>
 
 #include <systemd/sd-journal.h>
-
-#include "unitmodel.h"
 
 UnitModel::UnitModel(QObject *parent)
  : QAbstractTableModel(parent)
