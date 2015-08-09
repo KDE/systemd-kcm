@@ -1,7 +1,7 @@
 [Domain]
 Name=Systemd KDE control module
 Name[bg]=Контролен модул на KDE за Systemd
-Name[ca]=Mòdul de control del «systemd» pel KDE
+Name[ca]=Mòdul de control KDE pel «systemd»
 Name[de]=KDE-Kontrollmodul für systemd
 Name[es]=Módulo de control de KDE para systemd
 Name[fi]=KDE:n systemd-asetusosio
@@ -67,7 +67,21 @@ Persistence=session
 
 [org.kde.kcontrol.kcmsystemd.saveunitfile]
 Name=Save a systemd unit file
+Name[ca]=Desa un fitxer d'una unitat del «systemd»
+Name[nl]=Een systemd eenheidbestand opslaan
+Name[pl]=Zapisz pliki jednostki systemd
+Name[pt_BR]=Salvar um arquivo de unidade do systemd
+Name[sv]=Spara en systemd-enhetsfil
+Name[uk]=Зберегти файл модуля systemd
+Name[x-test]=xxSave a systemd unit filexx
 Description=Administrator authorization is required to save the systemd unit file
+Description[ca]=Es requereix autorització com a administrador per a desar el fitxer d'una unitat del «systemd»
+Description[nl]=Autorisatie als systeembeheerder is vereist om het eenheidsbestand van systemd op te slaan
+Description[pl]=Aby zapisać plik jednostki systemd, wymagane są uprawnienia administratora
+Description[pt_BR]=É necessária a autorização do administrador para salvar o arquivo de unidade do systemd
+Description[sv]=Administratörsbehörighet krävs för att spara systemd-enhetsfilen
+Description[uk]=Для збереження файла модуля systemd слід пройти розпізнавання на доступ до адміністративних функцій
+Description[x-test]=xxAdministrator authorization is required to save the systemd unit filexx
 Policy=auth_admin
 Persistence=session
 
