@@ -472,14 +472,14 @@ QString confOption::getLineForFile() const
           if (iter.value().toBool())
             ret = QString(ret + iter.key() + ' ');
         }
-        return QString(realName + '=' + ret.trimmed() + "\n");
+        return QString(realName + '=' + ret.trimmed() + '\n');
       }
     }
 
     else if (type == TIME)
     {
       if (value.toULongLong() == 0)
-        return QString(realName + '=' + value.toString() + "\n");
+        return QString(realName + '=' + value.toString() + '\n');
       else
       {
         if (defUnit == ns)
@@ -510,7 +510,7 @@ QString confOption::getLineForFile() const
       return QString(realName + '=' + value.toString() + "M\n");
     }
 
-    return QString(realName + '=' + value.toString() + "\n");
+    return QString(realName + '=' + value.toString() + '\n');
   } // not default
 }
 
