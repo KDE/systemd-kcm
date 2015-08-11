@@ -52,6 +52,7 @@ Comment[x-test]=xxConfigure the systemd daemonxx
 Comment[zh_CN]=配置 systemd 守护进程
 Comment[zh_TW]=設定 systemd 守護行程
 X-KDE-Keywords=systemd
+X-KDE-Keywords[ast]=systemd
 X-KDE-Keywords[bg]=systemd
 X-KDE-Keywords[ca]=systemd
 X-KDE-Keywords[cs]=systemd
