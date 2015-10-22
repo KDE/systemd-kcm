@@ -91,6 +91,7 @@ Name[uk]=Зберегти файл модуля systemd
 Name[x-test]=xxSave a systemd unit filexx
 Name[zh_TW]=儲存 systemd 單位檔案
 Description=Administrator authorization is required to save the systemd unit file
+Description[ast]=Ríquese l'autorización del sirvidor pa guardar el ficheru de unidá systemd
 Description[ca]=Es requereix autorització com a administrador per a desar el fitxer d'una unitat del «systemd»
 Description[en_GB]=Administrator authorisation is required to save the systemd unit file
 Description[fi]=systemd-yksikkötiedoston tallennus vaatii pääkäyttäjän oikeudet
@@ -111,6 +112,7 @@ Persistence=session
 
 [org.kde.kcontrol.kcmsystemd.dbusaction]
 Name=Manipulate systemd over D-Bus
+Name[ast]=Manipular systemd sobro D-Bus
 Name[bg]=Управление на systemd през D-Bus
 Name[ca]=Manipula el «systemd» sobre D-Bus
 Name[de]=systemd über D-Bus steuern
