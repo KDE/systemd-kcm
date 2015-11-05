@@ -1,6 +1,7 @@
 [Domain]
 Name=Systemd KDE control module
 Name[ca]=Mòdul de control de «systemd» pel KDE
+Name[ca@valencia]=Mòdul de control de «systemd» pel KDE
 Name[de]=KDE-Kontrollmodul für systemd
 Name[es]=Módulo de control de KDE para systemd
 Name[fi]=KDE:n systemd-asetusosio
@@ -18,6 +19,7 @@ Icon=system-run
 [org.kde.kcontrol.kcmsystemd.save]
 Name=Save the systemd settings
 Name[ca]=Desa la configuració del «systemd»
+Name[ca@valencia]=Guarda la configuració del «systemd»
 Name[de]=systemd-Einstellungen speichern
 Name[es]=Guardar las preferencias de systemd
 Name[fi]=systemd-asetusten tallennus
@@ -32,6 +34,7 @@ Name[uk]=Зберегти параметри systemd
 Name[x-test]=xxSave the systemd settingsxx
 Description=Administrator authorization is required to save the systemd settings
 Description[ca]=Es requereix l'autorització de l'administrador per a desar la configuració del «systemd»
+Description[ca@valencia]=Es requereix l'autorització de l'administrador per a guardar la configuració del «systemd»
 Description[de]=Zum Speichern der systemd-Einstellungen sind Systemverwalterrechte erforderlich.
 Description[es]=Se necesita autorización del administrador para guardar las preferencias de systemd
 Description[fi]=systemd-asetusten tallennus vaatii pääkäyttäjän oikeudet
@@ -50,6 +53,7 @@ Persistence=session
 [org.kde.kcontrol.kcmsystemd.dbusaction]
 Name=Manipulate a systemd unit over DBus
 Name[ca]=Manipula una unitat del «systemd» sobre el DBus
+Name[ca@valencia]=Manipula una unitat del «systemd» sobre el DBus
 Name[de]=systemd-Einheit über D-Bus steuern
 Name[es]=Manejar una unidad systemd sobre DBus
 Name[fi]=systemd-yksikön muokkaus D-Busin välityksellä
@@ -64,6 +68,7 @@ Name[uk]=Керування модулем systemd за допомогою D-Bus
 Name[x-test]=xxManipulate a systemd unit over DBusxx
 Description=Administrator authorization is required to modify this unit
 Description[ca]=Es requereix l'autorització de l'administrador per a modificar aquesta unitat
+Description[ca@valencia]=Es requereix l'autorització de l'administrador per a modificar esta unitat
 Description[de]=Systemverwalterrechte sind erforderlich, um diese Einheit zu bearbeiten
 Description[es]=Se necesita autorización del administrador para modificar esta unidad
 Description[fi]=Tämän yksikön muokkaus vaatii pääkäyttäjän oikeudet
