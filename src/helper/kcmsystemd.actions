@@ -27,6 +27,7 @@ Icon=system-run
 
 [org.kde.kcontrol.kcmsystemd.save]
 Name=Save the systemd configuration files
+Name[ast]=Guardar los ficheros de configuración de systemd
 Name[bg]=Запазване файловете с настройки на systemd
 Name[ca]=Desa els fitxers de configuració del «systemd»
 Name[ca@valencia]=Guarda els fitxers de configuració del «systemd»
@@ -78,6 +79,7 @@ Persistence=session
 
 [org.kde.kcontrol.kcmsystemd.saveunitfile]
 Name=Save a systemd unit file
+Name[ast]=Guardar un ficheru d'unidá de systemd
 Name[ca]=Desa un fitxer d'una unitat del «systemd»
 Name[ca@valencia]=Guarda un fitxer d'una unitat del «systemd»
 Name[en_GB]=Save a systemd unit file
