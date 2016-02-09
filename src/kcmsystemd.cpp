@@ -831,14 +831,23 @@ QList<QStandardItem *> kcmsystemd::buildTimerListRow(const SystemdUnit &unit, co
 
 void kcmsystemd::updateUnitCount()
 {
-  ui.lblUnitCount->setText(i18n("Total: %1 units, %2 active, %3 displayed",
-                                QString::number(systemUnitModel->rowCount()),
-                                QString::number(noActSystemUnits),
-                                QString::number(systemUnitFilterModel->rowCount())));
-  ui.lblUserUnitCount->setText(i18n("Total: %1 units, %2 active, %3 displayed",
-                                    QString::number(userUnitModel->rowCount()),
-                                    QString::number(noActUserUnits),
-                                    QString::number(userUnitFilterModel->rowCount())));
+  QString systemUnits = i18ncp("First part of 'Total: %1, %2, %3'",
+                               "1 unit", "%1 units", QString::number(systemUnitModel->rowCount()));
+  QString systemActive = i18ncp("Second part of 'Total: %1, %2, %3'",
+                                "1 active", "%1 active", QString::number(noActSystemUnits));
+  QString systemDisplayed = i18ncp("Third part of 'Total: %1, %2, %3'",
+                                   "1 displayed", "%1 displayed", QString::number(systemUnitFilterModel->rowCount()));
+  ui.lblUnitCount->setText(i18nc("%1 is '%1 units' and %2 is '%2 active' and %3 is '%3 displayed'",
+                                 "Total: %1, %2, %3", systemUnits, systemActive, systemDisplayed));
+
+  QString userUnits = i18ncp("First part of 'Total: %1, %2, %3'",
+                             "1 unit", "%1 units", QString::number(userUnitModel->rowCount()));
+  QString userActive = i18ncp("Second part of 'Total: %1, %2, %3'",
+                              "1 active", "%1 active", QString::number(noActUserUnits));
+  QString userDisplayed = i18ncp("Third part of 'Total: %1, %2, %3'",
+                                 "1 displayed", "%1 displayed", QString::number(userUnitFilterModel->rowCount()));
+  ui.lblUserUnitCount->setText(i18nc("%1 is '%1 units' and %2 is '%2 active' and %3 is '%3 displayed'",
+                                     "Total: %1, %2, %3", userUnits, userActive, userDisplayed));
 }
 
 void kcmsystemd::authServiceAction(QString service, QString path, QString interface, QString method, QList<QVariant> args)
