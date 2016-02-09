@@ -1,5 +1,6 @@
 [Domain]
 Name=Systemd KDE control module
+Name[ar]=وحدة كدي للتحكّم ب‍Systemd
 Name[ast]=Módulu de control KDE systemd
 Name[bg]=Контролен модул на KDE за Systemd
 Name[ca]=Mòdul de control KDE pel «systemd»
@@ -27,6 +28,7 @@ Icon=system-run
 
 [org.kde.kcontrol.kcmsystemd.save]
 Name=Save the systemd configuration files
+Name[ar]=احفظ ملفّات ضبط Systemd
 Name[ast]=Guardar los ficheros de configuración de systemd
 Name[bg]=Запазване файловете с настройки на systemd
 Name[ca]=Desa els fitxers de configuració del «systemd»
@@ -51,6 +53,7 @@ Name[x-test]=xxSave the systemd configuration filesxx
 Name[zh_CN]=保存 systemd 配置文件
 Name[zh_TW]=儲存 systemd 設定檔案
 Description=Administrator authorization is required to save the systemd configuration files
+Description[ar]=استيثاق المدير مطلوب لحفظ ملفّات ضبط Systemd
 Description[ast]=Ríquese l'autorización del alministrador pa guardar los ficheros de configuración de systemd
 Description[bg]=За запазване на файловете с настройки на systemd е нужно одобрение от администратор
 Description[ca]=Es requereix autorització com a administrador per a desar els fitxers de configuració del «systemd»
@@ -79,6 +82,7 @@ Persistence=session
 
 [org.kde.kcontrol.kcmsystemd.saveunitfile]
 Name=Save a systemd unit file
+Name[ar]=احفظ ملفّ وحدة Systemd
 Name[ast]=Guardar un ficheru d'unidá de systemd
 Name[ca]=Desa un fitxer d'una unitat del «systemd»
 Name[ca@valencia]=Guarda un fitxer d'una unitat del «systemd»
@@ -97,6 +101,7 @@ Name[uk]=Зберегти файл модуля systemd
 Name[x-test]=xxSave a systemd unit filexx
 Name[zh_TW]=儲存 systemd 單位檔案
 Description=Administrator authorization is required to save the systemd unit file
+Description[ar]=استيثاق المدير مطلوب لحفظ ملفّ وحدة Systemd
 Description[ast]=Ríquese l'autorización del sirvidor pa guardar el ficheru de unidá systemd
 Description[ca]=Es requereix autorització com a administrador per a desar el fitxer d'una unitat del «systemd»
 Description[ca@valencia]=Es requereix autorització com a administrador per a guardar el fitxer d'una unitat del «systemd»
@@ -119,6 +124,7 @@ Persistence=session
 
 [org.kde.kcontrol.kcmsystemd.dbusaction]
 Name=Manipulate systemd over D-Bus
+Name[ar]=تلاعب ب‍Systemd عبر D-Bus
 Name[ast]=Manipular systemd sobro D-Bus
 Name[bg]=Управление на systemd през D-Bus
 Name[ca]=Manipula el «systemd» sobre D-Bus
@@ -143,6 +149,7 @@ Name[x-test]=xxManipulate systemd over D-Busxx
 Name[zh_CN]=通过 D-Bus 操作 systemd
 Name[zh_TW]=使用 D-Bus 操作 systemd
 Description=Administrator authorization is required to manipulate systemd
+Description[ar]=استيثاق المدير مطلوب للتّلاعب ب‍Systemd
 Description[ast]=Ríquese l'autorización pa manipular systemd
 Description[bg]=За управление на systemd е нужно одобрение от администратор
 Description[ca]=Es requereix autorització com a administrador per a manipular el «systemd»
