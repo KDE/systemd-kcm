@@ -45,7 +45,7 @@ Contributions from:
 * Alexandre Detiste <alexandre@detiste.be>
 
 Website:
-https://projects.kde.org/projects/playground/sysadmin/systemd-kcm/
+https://commits.kde.org/systemd-kcm
 
 Source packages can be downloaded at:
 http://download.kde.org/stable/systemd-kcm/
@@ -54,4 +54,4 @@ Please report bugs and feature requests at:
 https://bugs.kde.org/
 
 Git repository can be found at:
-http://quickgit.kde.org/?p=systemd-kcm.git
+https://commits.kde.org/systemd-kcm
