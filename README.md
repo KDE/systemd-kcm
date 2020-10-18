@@ -19,6 +19,7 @@ Installation
 Dependencies
 ------------
 *   Qt >= 5.2
+*   extra-cmake-modules
 *   KF5Auth
 *   KF5ConfigWidgets
 *   KF5CoreAddons
